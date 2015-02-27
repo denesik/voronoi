@@ -2,306 +2,408 @@
 #define VORONOI_H
 
 #include "geometry.h"
-
-#include <vector>
-#include <list>
 #include <set>
+#include <list>
 #include <map>
-#include <functional>
 
 using namespace geometry;
 
-struct Parabola
+//#define VORONOI_DEBUG_INFO
+
+#ifdef VORONOI_DEBUG_INFO
+template<int T>
+struct Val
 {
-  const int id;
-  static int PIdGeneration;
-  Point focus;
-  Parabola(Point f)
-    : id(PIdGeneration), focus(f)
+  static int Get()
   {
-    PIdGeneration++;
+    static int id = 1;
+    return id++;
   }
 };
-
-struct Event;
-
-struct Arc
-{
-    Parabola *parabola;
-    Event *event;
-    Arc()
-    {
-        parabola = nullptr;
-        event = nullptr;
-    }
-
-    Arc(const Arc &arc)
-    {
-        parabola = arc.parabola;
-        event = arc.event;
-    }
-    Arc(Parabola *p)
-    {
-        parabola = p;
-        event = nullptr;
-    }
-    Arc& operator=(const Arc& arc)
-    {
-      if (this == &arc)
-      {
-        return *this;
-      }
-      parabola = arc.parabola;
-      event = arc.event;
-      return *this;
-    }
-};
-
-struct BreakPoint
-{
-  const int id;
-  static int BPIdGeneration;
-  enum BPType
-  {
-    POINT = 1,
-    END_POINT = 2,
-  };
-
-  BPType type;
-  Point point;
-
-  BreakPoint(BPType t)
-    : id(BPIdGeneration), type(t)
-  {
-    BPIdGeneration++;
-  }
-};
-
-struct Element
-{
-  enum
-  {
-    EMPTY = 0,
-    ARC = 1,
-    BREAK_POINT = 2,
-  }type;
-  
-  Arc arc;
-  BreakPoint *breakPoint;
-  
-  Element()
-    : type(EMPTY)
-  {
-    breakPoint = nullptr;
-  }
-  Element(const Element& el)
-    : type(el.type), arc(el.arc)
-  {
-    breakPoint = el.breakPoint;
-  }
-  Element& operator=(const Element& el) 
-  {
-    if (this == &el) 
-    {
-      return *this;
-    }
-    type = el.type;
-    arc = el.arc;
-    breakPoint = el.breakPoint;
-    return *this;
-  }
-
-  Element(Parabola *p)
-    : type(ARC), arc(p)
-  {
-    breakPoint = nullptr;
-  }
-  Element(BreakPoint *bp)
-    : type(BREAK_POINT)
-  {
-    breakPoint = bp;
-  }
-};
-
-struct Edge
-{
-  BreakPoint *bp1;
-  BreakPoint *bp2;
-  Parabola *p1;
-  Parabola *p2;
-  Edge()
-  {
-    bp1 = nullptr;
-    bp2 = nullptr;
-    p1 = nullptr;
-    p2 = nullptr;
-  }
-};
-
-struct BtreeElement
-{
-  BtreeElement *parent;
-  BtreeElement *left;
-  BtreeElement *right;
-  Element element;
-  BtreeElement()
-  {
-    parent = nullptr;
-    left = nullptr;
-    right = nullptr;
-  }
-  BtreeElement(const BtreeElement &el)
-    : element(el.element)
-  {
-    parent = el.parent;
-    left = el.left;
-    right = el.right;
-  }
-  BtreeElement(const Element &el)
-    : element(el)
-  {
-    parent = nullptr;
-    left = nullptr;
-    right = nullptr;
-  }
-};
-
-struct SiteEvent
-{
-  Parabola *parabola;
-  SiteEvent()
-  {
-    parabola = nullptr;
-  }
-  SiteEvent(Parabola *p)
-  {
-    parabola = p;
-  }
-};
-
-struct CircleEvent
-{
-  Point center;
-  Point pos;
-  BtreeElement *arcNode;
-  CircleEvent()
-  {
-    arcNode = nullptr;
-  }
-  CircleEvent(BtreeElement *arc)
-  {
-    arcNode = arc;
-  }
-};
-
-struct Event
-{
-  enum EventType
-  {
-    SITE_EVENT,
-    CIRCLE_EVENT,
-  } type;
-  SiteEvent se;
-  CircleEvent ce;
-  double height;
-  Event(const SiteEvent &s)
-    : type(SITE_EVENT), se(s)
-  {
-    height = s.parabola->focus.y;
-  }
-  Event(const CircleEvent &c)
-    : type(CIRCLE_EVENT), ce(c)
-  {
-    height = c.pos.y;
-  }
-};
+#endif
 
 class Voronoi
 {
 public:
-  Voronoi(const std::list<glm::vec2> &points, glm::vec2 size);
+  struct SiteComparator
+  {
+    bool operator()(const glm::vec2 &a, const glm::vec2 &b) const
+    {
+//       if(a.x == b.x)
+//         return a.y < b.y;
+//       return a.x < b.x;
+      if(a.y == b.y)
+        return a.x > b.x;
+      return a.y > b.y;
+    }
+  };
+
+  Voronoi(const std::set<glm::vec2, SiteComparator> &points, const glm::vec2 &size);
   ~Voronoi();
 
+  typedef std::map<glm::vec2, std::vector<glm::vec2>, SiteComparator> DiagramData;
+
+  /// Вернуть диаграмму Вороного.
+  DiagramData GetDiagram();
+
+  /// Отсортировать вершины полигонов в диаграмме против часовой.
+  void Sort();
+
+private:
+
+  /// Интерфейс элемента.
+  /// Элемент может быть аркой, точкой пересечения арок, либо точкой пересечения граней.
+  struct IElement
+  {
+    enum ElementType
+    {
+      ARC,
+      BREAK_POINT,
+      END_POINT,
+    };
+
+    IElement(ElementType t)
+     : type(t)
+    {}
+
+    const ElementType type;
+  };
+
+  /// Входная точка.
+  /// Так же является фокусом параболы.
+  struct Site
+  {
+    const Point pos;
+#ifdef VORONOI_DEBUG_INFO
+    const int id;
+#endif
+    Site(const Point &p)
+     : pos(p)
+#ifdef VORONOI_DEBUG_INFO     
+     , id(Val<IElement::ARC>::Get())
+#endif
+    {
+    }
+  };
+
+  struct CircleEvent;
+  /// Арка. Содержит указатель на входную точку.
+  /// Так же содержит указатель на событие круга для этой арки, если такое существует.
+  struct ArcElement : public IElement
+  {
+    const Site *site;
+    CircleEvent *event;
+    ArcElement(const Site *s)
+     : IElement(ARC), site(s)
+    {
+      event = nullptr;
+    }
+  };
+
+  struct Edge;
+  /// Точка пересечения арок.
+  /// Содержит позицию пересечения соседних арок и
+  /// указатель на грань, один из концов которой является данные брекпоинт.
+  struct BPElement : public IElement
+  {
+#ifdef VORONOI_DEBUG_INFO
+    const int id;
+#endif
+    Edge *edge;
+    BPElement()
+     : IElement(BREAK_POINT)
+#ifdef VORONOI_DEBUG_INFO     
+     , id(Val<BREAK_POINT>::Get())
+#endif
+    {
+      edge = nullptr;
+    }
+  };
+  
+  /// Точка пересечения граней.
+  /// Содержит 3 входных точки, между которыми она находится
+  /// и позицию пересечения.
+  struct EPElement : public IElement
+  {
+    const Point pos;
+    const Site *site1;
+    const Site *site2;
+    const Site *site3;
+#ifdef VORONOI_DEBUG_INFO    
+    const int id;
+#endif
+    EPElement(const Point &p, const Site *s1, const Site *s2, const Site *s3)
+     : IElement(END_POINT), pos(p), site1(s1), site2(s2), site3(s3)
+#ifdef VORONOI_DEBUG_INFO
+     , id(Val<END_POINT>::Get())
+#endif
+    {
+    }
+  };
+  
+  /// Интерфейс события.
+  /// Возможно событие точки или событие круга.
+  struct IEvent
+  {
+    enum EventType
+    {
+      SITE,
+      CIRCLE,
+    };
+
+    IEvent(EventType t)
+     : type(t)
+    {}
+
+    const EventType type;
+  };
+  
+  struct BtreeElement;
+  /// Событие круга.
+  /// Возникает, если для трех входных точек, лежащих по часовой стрелке
+  /// можно построить окружность и самая низкая точка окружности лежит
+  /// ниже заметающей прямой.
+  /// Создается для точки, расположенной посередине.
+  struct CircleEvent : public IEvent // 40 bytes
+  {
+    BtreeElement *arc;
+    const Point center;
+    const Point pos;
+    CircleEvent(BtreeElement *a, const Point &p, const Point &c)
+     : IEvent(CIRCLE), arc(a), center(c), pos(p)
+    {
+    }
+  };
+  
+  /// Событие точки.
+  /// Возникает для каждой входящей точки.
+  struct SiteEvent : public IEvent // 8 bytes
+  {
+    const Site *site;
+    SiteEvent(const Site *s)
+     : IEvent(SITE), site(s)
+    {
+    }
+  };
+  
+  /// Элемент дерева.
+  struct BtreeElement
+  {
+    BtreeElement *parent;
+    BtreeElement *left;
+    BtreeElement *right;
+    IElement *element;
+    BtreeElement(IElement *el)
+    {
+      parent = nullptr;
+      left = nullptr;
+      right = nullptr;
+      element = el;
+    }
+  };
+  
+  /// Грань.
+  /// Содержит указатели на 2 арки и 2 точки соединяющие грань.
+  /// Точки может быть указателем на точку пересечения парабол,
+  /// либо указателем на точку пересечения граней.
+  struct Edge
+  {
+    IElement *el1;
+    IElement *el2;
+    const Site *site1;
+    const Site *site2;
+  };
+
+private:
+  // Уровень заметающей прямой.
+  // Прямая опускается сверху вниз.
+  double mSweepLine;
+
+  // Голова дерева.
+  BtreeElement *mHead;
+
+  // Область в которой строится диаграмма вороного.
+  // (0;0) - левый нижний угол. Правый верхний угол задается.
+  const Rect mRect;
+
+  // Список входных точек.
+  // Нужен для корректного освобождения ресурсов.
+  std::list<Site *> mSiteList;
+
+  // Список брекпоинтов и точек пересечения граней.
+  // Нужен для корректного освобождения ресурсов.
+  std::list<IElement *> mListPoints;
+
+  struct EventsComparator
+  {
+    bool operator()(IEvent *e1, IEvent *e2) const
+    {
+      const Point &p1 = e1->type == IEvent::SITE ? 
+        static_cast<SiteEvent *>(e1)->site->pos :
+        static_cast<CircleEvent *>(e1)->pos;
+      const Point &p2 = e2->type == IEvent::SITE ? 
+        static_cast<SiteEvent *>(e2)->site->pos :
+        static_cast<CircleEvent *>(e2)->pos;
+
+      if(p1.y == p2.y)
+        return p1.x > p2.x;
+      return p1.y > p2.y;
+    }
+  };
+
+  // Упорядоченный по высоте список событий.
+  std::multiset<IEvent *, EventsComparator> mEvents;
+
+  // Список граней.
+  std::list<Edge *> mListEdge;
+
+  DiagramData mDiagramData;
+
+  class FinderAnglePoints
+  {
+  public:
+    FinderAnglePoints(const Rect &rect);
+
+    const Rect mRect;
+
+    struct
+    {
+      double lb;
+      double lt;
+      double rt;
+      double rb;
+    } mDistance;
+
+    Point mSitelb;
+    Point mSitelt;
+    Point mSitert;
+    Point mSiterb;
+
+    void Check(const Point &point);
+
+    void Clear();
+  } mFinderAnglePoints;
+
+  // Ссылка на список входных данных.
+  const std::set<glm::vec2, SiteComparator> &mInPoints;
+
+private:
+  // Отладочные функции.
   bool IsList(BtreeElement *btreeElement);
   bool IsNode(BtreeElement *btreeElement);
 
-  // Вставить новую параболу в корень дерева.
-  void InsertArcHead(Parabola *parabola);
+#ifdef VORONOI_DEBUG_INFO
+  // Отобразить состояние дерева.
+  void PrintListsBPA();
 
-  // Вставить новую параболу в существующую.
-  void InsertArc(BtreeElement *btreeElement, Parabola *parabola);
+  // Отобразить список граней.
+  void PrintEdgeList();
 
-  // Удалить существующую арку.
-  // Арка должна находиться между двумя другими арками.
-  // arcPos - номер арки в списке арок.
-  void RemoveArc(unsigned int arcPos, Point intersection);
-
-  // Обновить грань, прамая становится лучем, или луч становится отрезком.
-  void UpdateEdge(BreakPoint *removedPoint, BreakPoint *endPoint);
-
-  // Вычислить позицию брекпоинта.
-  // BPPos - позиция в списке брекпоинтов.
-  void CalcBPPos(unsigned int BPPos);
-
-  void GenerateCircleEvent();
-
-  void RemoveEvent(Event *event);
-
-  void Process();
-
-  BtreeElement *FindInsertArc(Parabola *parabola);
-
-  void CalcBPPos();
-
-  bool IsLine(const Point &p1, const Point &p2, const Point &p3);
-
-  // Обрезаем оставшиеся лучи и прямые ограничивающей областью.
-  void PostProcess();
-
-private:
-  struct DDComparator
-  {
-     bool operator()(const glm::vec2& a, const glm::vec2& b) const
-     {
-       if(a.x == b.x)
-        return a.y < b.y;
-       return a.x < b.x;
-     }
-  };
-
-public:
-  const std::multimap<glm::vec2, glm::vec2, DDComparator> &GetDiagram();
-
-  // Брекпоинт превратился в точку пересечения граней.
-  //void FindedBP(const Point &bp, const Point &arcpos);
-
-  // Вставить брекпоинты.
-  void InsertBP(const std::list<Point> &points, const Point &arc1, const Point &arc2);
-
-private:
-
-  Rect mRect;
-
-  BtreeElement *mHead;
-
-  std::vector<Parabola *> mParabols;
+  // Списки арок и брекпоинтов, расположение элементов слева на право.
   std::vector<BtreeElement *> mListArc;
-  std::vector<BtreeElement *> mListBreakPoints;
-  std::list<Edge> mEdgeList;
-  std::multiset<Event *, std::function<bool (Event *, Event *)> > mEvents;
-  std::multimap<glm::vec2, glm::vec2, DDComparator> mDiagramData;
+  std::vector<BtreeElement *> mListBP;
 
-  double mSweptLine;
-
-public:
   // Создать список арок и список брекпоинтов.
   void GenerateListsBPA();
-
-  // Получить арку для текущей ноды.
   void GenerateListsBPA(BtreeElement *node);
+#endif
+private:
 
-  void PrintListsBPA();
+  /// Добавить самую первую точку.
+  void InsertSiteFirstHead(const Site *site);
+
+  /// Добавить точку на самом верхнем уровне.
+  void InsertSiteTop(const Site *site);
+
+  /// Добавить точку в дерево.
+  void InsertArc(BtreeElement *element, const Site *site);
+
+  /// Удалить арку.
+  /// ep - Точка соединения трех граней.
+  void RemoveArc(BtreeElement *element, const Point &ep);
+
+  /// Найти арку и брекпоинт слева от текущей
+  std::pair<BtreeElement *, BtreeElement *> LeftArcBP(BtreeElement *element);
+
+  /// Найти арку справа от текущей
+  std::pair<BtreeElement *, BtreeElement *> RightArcBP(BtreeElement *element);
+
+  /// Проверить событие круга для заданной арки.
+  void CheckCircleEvent(BtreeElement *leftArc, BtreeElement *arc, BtreeElement *rightArc);
+
+  /// Удалить событие круга.
+  void RemoveCircleEvent(CircleEvent *event);
+
+  /// Добавить новое событие точки.
+  void NewSiteEvent(const Site *site);
+
+  /// Добавить новое событие круга.
+  void NewCircleEvent(BtreeElement *arc, const Point &point, const Point &center);
+
+  /// Добавить новую грань.
+  void NewEdge(IElement *el1, IElement *el2, const Site *site1, const Site *site2);
+
+  /// Обновить список граней.
+  void UpdateEdge(BPElement *el1, BPElement *el2, EPElement *ep);
+
+  /// Освободить ресурсы.
+  void Release();
+
+  /// Основной цикл алгоритма.
+  void Process();
+
+  /// Вычислить грани.
+  void CalcEdge();
+
+  /// Вставляем вершины полигона для двух точек.
+  void InsertPoligonPoint(const std::list<Point> &points, const Point &site1, const Point &site2);
+
+  /// Добавить новую точку и событие для нее.
+  void AddSite(std::set<glm::vec2, SiteComparator>::const_iterator &itSite);
+
+private:
+  // Рекурсивные функции
+
+  /// Найти брекпоинт слева от арки.
+  BtreeElement *LeftBP(BtreeElement *element);
+
+  /// Найти арку слева от брекпоинта.
+  BtreeElement *LeftArc(BtreeElement *element);
+
+  /// Найти брекпоинт справа от арки.
+  BtreeElement *RightBP(BtreeElement *element);
+
+  /// Найти арку справа от брекпоинта.
+  BtreeElement *RightArc(BtreeElement *element);
+
+  /// Удалить дерево.
+  void RemoveTree();
+  void RemoveTree(BtreeElement *node);
+
+  /// Функции создания брекпоинтов и точек пересечения граней.
+  inline BPElement *NewBPElement();
+  inline EPElement *NewEPElement(const Point &p, const Site *s1, const Site *s2, const Site *s3);
+
+  /// Найти арку, в которую попадает текущая координата по x.
+  BtreeElement *FindArc(double x);
+  BtreeElement *FindArc(BtreeElement *bp, double x);
 
 };
 
 #endif // VORONOI_H
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

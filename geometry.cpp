@@ -5,7 +5,7 @@
 #include <functional>
 #include <list>
 
-#define EPS 0.00001
+#define EPS 0.001
 
 double geometry::RotationPoint(const Point &a, const Point &b, const Point &c)
 {
@@ -170,70 +170,88 @@ bool geometry::IsIntersectionRaySegment(const Segment &segment, const Ray &ray)
     return false;
   }
 
-  double t1 = RotationPoint(ray.point, ray.dir, segment.a); 
+  double t1 = RotationPoint(ray.point, ray.dir, segment.a);
   double t2 = RotationPoint(ray.point, ray.dir, segment.b);
 
   return (t1 >= 0.0 && t2 <= 0.0) || (t2 >= 0.0 && t1 <= 0.0);
 }
 
-geometry::Point geometry::IntersectParabols(double sl, const Point &p1, const Point &p2)
+double geometry::IntersectParabols(double sl, const Point &p1, const Point &p2)
 {
-  double a = p2.y - p1.y;
+  // Если фокус параболы лежит на заметающей прямой, они пересекаются там,
+  // где находится эта парабола по x.
+  if(sl == p1.y)
+  {
+    return p1.x;
+  }
+  if(sl == p2.y)
+  {
+    return p2.x;
+  }
+  const double a = p2.y - p1.y;
   if(a != 0)
   {
-    double b = p2.x * p1.y - p1.x * p2.y + sl * (p1.x - p2.x);
-    double c = p2.y * (p1.x * p1.x) - p1.y * (p2.x * p2.x) + sl * (p2.x * p2.x) - sl * (p1.x * p1.x) + p2.y * (p1.y * p1.y) -
-      p2.y * (sl * sl) - sl * (p1.y * p1.y) - p1.y * (p2.y * p2.y) + p1.y * (sl * sl) + sl * (p2.y * p2.y);
+    const double b = p2.x * p1.y - p1.x * p2.y + sl * (p1.x - p2.x);
+
+    const double x12 = p1.x * p1.x;
+    const double y12 = p1.y * p1.y;
+    const double x22 = p2.x * p2.x;
+    const double y22 = p2.y * p2.y;
+
+    const double c = (sl * sl + p1.y * p2.y) * (p1.y - p2.y) +
+               sl * (x22 + y22 - x12 - y12) +
+               x12 * p2.y - x22 * p1.y;
+
     //y = a * (x * x) + 2 * b * x + c;
-    double d4 = b * b - a * c;
+    const double d4 = b * b - a * c;
     assert(d4 >= 0);
-    double x1 = (-b + sqrt(d4)) / (a);
-    double x2 = (-b - sqrt(d4)) / (a);
+    const double x1 = (-b + sqrt(d4)) / (a);
+    const double x2 = (-b - sqrt(d4)) / (a);
 
-    double y1 = (pow((x1 - p1.x), 2) + p1.y * p1.y - sl * sl) / (2 * (p1.y - sl));
-    double y2 = (pow((x2 - p1.x), 2) + p1.y * p1.y - sl * sl) / (2 * (p1.y - sl));
+    // Нам не нужны координаты по y
+    //double y1 = (pow((x1 - p1.x), 2) + p1.y * p1.y - sl * sl) / (2 * (p1.y - sl));
+    //double y2 = (pow((x2 - p1.x), 2) + p1.y * p1.y - sl * sl) / (2 * (p1.y - sl));
 
-    Point pLeft(x1, y1);
-    Point pRight(x2, y2);
-
-    if(x1 > x2)
-    {
-      pLeft = Point(x2, y2);
-      pRight = Point(x1, y1);
-    }
+    const double leftx = x1 < x2 ? x1 : x2;
+    const double rightx = x1 < x2 ? x2 : x1;
 
     // Мы получили отрезок, при чем отрезок расположен слева направо.
     if(p1.y > p2.y)
     {
-      return pLeft;
+      return leftx;
     }
     else
     {
-      return pRight;
+      return rightx;
     }
   }
 
-  // Если вокусы парабол на одном уровне, они пересекаются по x в центре между фокусами.
-  double x = (p1.x + p2.x) / 2;
 
-  double y = (pow(x - p1.x, 2.0) + p1.y * p1.y - sl * sl) / (2 * (p1.y - sl));
+  // Если фокусы парабол на одном уровне, они пересекаются по x в центре между фокусами.
+  const double x = (p1.x + p2.x) / 2;
 
-  return Point(x, y);
-  //return Segment(pLeft, pRight);
+  //double y = (p1.y + p2.y) / 2;
+  //double y = (pow(x - p1.x, 2.0) + p1.y * p1.y - sl * sl) / (2 * (p1.y - sl));
+
+  return x;
 }
 
 geometry::Point geometry::CreateCircle(const Point &a, const Point &b, const Point &c)
 {
-  double x1 = a.x;
-  double y1 = a.y;
-  double x2 = b.x;
-  double y2 = b.y;
-  double x3 = c.x;
-  double y3 = c.y;
+  const double x1 = a.x;
+  const double y1 = a.y;
+  const double x2 = b.x;
+  const double y2 = b.y;
+  const double x3 = c.x;
+  const double y3 = c.y;
 
-  double zx = (y1 - y2) * (x3 * x3 + y3 * y3) + (y2 - y3) * (x1 * x1 + y1 * y1) + (y3 - y1) * (x2 * x2 + y2 * y2);
-  double zy = (x1 - x2) * (x3 * x3 + y3 * y3) + (x2 - x3) * (x1 * x1 + y1 * y1) + (x3 - x1) * (x2 * x2 + y2 * y2);
-  double z  = (x1 - x2) * (y3 - y1) - (y1 - y2) * (x3 - x1);
+  const double xy3 = x3 * x3 + y3 * y3;
+  const double xy1 = x1 * x1 + y1 * y1;
+  const double xy2 = x2 * x2 + y2 * y2;
+
+  const double zx = (y1 - y2) * (xy3) + (y2 - y3) * (xy1) + (y3 - y1) * (xy2);
+  const double zy = (x1 - x2) * (xy3) + (x2 - x3) * (xy1) + (x3 - x1) * (xy2);
+  const double z  = (x1 - x2) * (y3 - y1) - (y1 - y2) * (x3 - x1);
 
   assert(z != 0);
 
@@ -298,48 +316,6 @@ geometry::Rect geometry::CreateRect(const Segment &segment)
   return Rect(Point(leftx, bottomy), Point(rightx, topy));
 }
 
-
-
-std::vector<glm::vec2> geometry::SortPointCcw(const std::vector<glm::vec2> &points)
-{
-  // Ищем самую левую точку.
-  // Если таких точек несколько - выбираем верхную
-  auto itPos = points.begin();
-  for(auto it = points.begin(); it != points.end(); ++it)
-  {
-    if((*itPos).x > (*it).x)
-    {
-      itPos = it;
-    }
-    else if((*itPos).x == (*it).x)
-    {
-      if((*itPos).y <= (*it).y)
-      {
-        itPos = it;
-      }
-    }
-  }
-
-  glm::vec2 point = *itPos;
-
-  std::multiset<glm::vec2, std::function<bool(const glm::vec2 &, const glm::vec2 &)> >
-      sortedPoints([point](const glm::vec2 &a,const glm::vec2 &b)
-                   {
-                     return RotationPoint(point, a, b) > 0;
-                   });
-
-  for(auto it = points.begin(); it != points.end(); ++it)
-  {
-    if(itPos != it)
-      sortedPoints.insert(*it);
-  }
-
-  std::vector<glm::vec2> output;
-  output.reserve(points.size());
-  output.push_back(point);
-  output.insert(output.end(), sortedPoints.begin(), sortedPoints.end());
-  return output;
-}
 
 
 

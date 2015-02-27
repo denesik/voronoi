@@ -105,25 +105,26 @@ void Image::DrawLine(const glm::vec2 &p1, const glm::vec2 &p2, unsigned int colo
   float B = p2.x - p1.x;
   float C = p1.x * p2.y - p2.x * p1.y;
 
+  int xMin = p1.x < p2.x ? (int)glm::round(p1.x) : (int)glm::round(p2.x);
+  int xMax = p1.x > p2.x ? (int)glm::round(p1.x) : (int)glm::round(p2.x);
+
+  int yMin = p1.y < p2.y ? (int)glm::round(p1.y) : (int)glm::round(p2.y);
+  int yMax = p1.y > p2.y ? (int)glm::round(p1.y) : (int)glm::round(p2.y);
+
   if(a > b)
   {
-    int xMin = p1.x < p2.x ? int(p1.x) : int(p2.x);
-    int xMax = p1.x > p2.x ? int(p1.x) : int(p2.x);
 
     for(int i = xMin; i <= xMax; ++i)
     {
-      int y = int((- C - A * float(i)) / B);
+      int y = glm::clamp((int)glm::round((- C - A * float(i)) / B), yMin, yMax);
       Set(glm::uvec2(i, y), color);
     }
   }
   else
   {
-    int yMin = p1.y < p2.y ? int(p1.y) : int(p2.y);
-    int yMax = p1.y > p2.y ? int(p1.y) : int(p2.y);
-
     for(int i = yMin; i <= yMax; ++i)
     {
-      int x = int((- C - B * float(i)) / A);
+      int x = glm::clamp((int)glm::round((- C - B * float(i)) / A), xMin, xMax);
       Set(glm::uvec2(x, i), color);
     }
   }

@@ -114,7 +114,7 @@ namespace geometry
   // Найти пересечение парабол.
   // sl - координата по y заметающей прямой
   // p1 и p2 координыта центров парабол.
-  Point IntersectParabols(double sl, const Point &p1, const Point &p2);
+  double IntersectParabols(double sl, const Point &p1, const Point &p2);
 
   // Пересекается ли луч и отрезок.
   bool IsIntersectionRaySegment(const Segment &segment, const Ray &ray);
@@ -133,10 +133,6 @@ namespace geometry
 
   // Создать рект по заданной диагонали.
   Rect CreateRect(const Segment &segment);
-
-  // Отсортировать точки против часовой стрелки.
-  std::vector<glm::vec2> SortPointCcw(const std::vector<glm::vec2> &points);
-
 }
 
 

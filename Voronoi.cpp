@@ -1,66 +1,36 @@
 #include "Voronoi.h"
 
-#include <assert.h>
+#include <stdio.h>
 #include <algorithm>
-#include "geometry.h"
 
-//#define EPS 0.0001
+#define EPS 0.001
 
-int BreakPoint::BPIdGeneration = 1;
-int Parabola::PIdGeneration = 1;
-
-
-Voronoi::Voronoi(const std::list<glm::vec2> &points, glm::vec2 size)
-  : mRect(Point(0.0, 0.0), size), mEvents([](Event *e1, Event *e2)
-                         {
-                           return e1->height > e2->height;
-                         })
-
+Voronoi::Voronoi(const std::set<glm::vec2, SiteComparator> &points, const glm::vec2 &size)
+  : mHead(nullptr), mRect(Point(0, 0), Point(size)), mFinderAnglePoints(mRect), mInPoints(points)
 {
-  mHead = nullptr;
+  // Добавляем точки и создаем события для них.
+//   for(auto it = points.begin(); it != points.end(); ++it)
+//   {
+//     Site *site = new Site(*it);
+//     mSiteList.push_back(site);
+//     mFinderAnglePoints.Check(site->pos);
+//     NewSiteEvent(site);
+//   }
 
-  for(auto it = points.begin(); it != points.end(); ++it)
-  {
-    mParabols.push_back(new Parabola(*it));
-    mEvents.insert(new Event(SiteEvent(mParabols.back()))); 
-  }
-  /*
-  for(auto it = mEvents.begin(); it != mEvents.end(); ++it)
-  {
-    printf("y:%f, ", (*it)->height);
-  }
-
-  InsertArcHead(mParabols[0]);
-  GenerateListsBPA();
-  InsertArc(mListArc[0], mParabols[1]);
-  GenerateListsBPA();
-  InsertArc(mListArc[1], mParabols[2]);
-  GenerateListsBPA();
-  InsertArc(mListArc[2], mParabols[3]);
-  GenerateListsBPA();
-  RemoveArc(4, Point());
-  GenerateListsBPA();
-  InsertArc(mListArc[0], mParabols[4]);
-  GenerateListsBPA();
-  RemoveArc(2, Point());
-  GenerateListsBPA();
-  RemoveArc(2, Point());
-  GenerateListsBPA();
-  InsertArc(mListArc[2], mParabols[5]);
-  GenerateListsBPA();
-  RemoveArc(2, Point());
-  GenerateListsBPA();
-  RemoveArc(3, Point());
-  GenerateListsBPA();
-  PrintListsBPA();
-  */
   Process();
-  //PrintListsBPA();
+
+//   if(!mEvents.empty())
+//   {
+//     Process();
+//   }
+  
+  //PrintEdgeList();
+  Release();
 }
 
 Voronoi::~Voronoi()
 {
-
+  Release();
 }
 
 bool Voronoi::IsList(BtreeElement *btreeElement)
@@ -77,73 +47,83 @@ bool Voronoi::IsNode(BtreeElement *btreeElement)
   return !IsList(btreeElement);
 }
 
-
-void Voronoi::InsertArcHead(Parabola *parabola)
+void Voronoi::InsertSiteFirstHead(const Site *site)
 {
-  assert(parabola);
+  assert(site);
   assert(mHead == nullptr);
-  mHead = new BtreeElement(Element(parabola));
+  mHead = new BtreeElement(new ArcElement(site));
 }
 
-void Voronoi::InsertArc(BtreeElement *btreeElement, Parabola *parabola)
+void Voronoi::InsertArc(BtreeElement *btreeElement, const Site *site)
 {
   // параметры должны существовать, элемент дерева должен быть листом,
   // листом дерева должна быть арка.
-  assert(parabola);
+  assert(site);
   assert(btreeElement);
   assert(IsList(btreeElement));
-  assert(btreeElement->element.type == Element::ARC);
+  assert(btreeElement->element);
+  assert(btreeElement->element->type == IElement::ARC);
+  assert(static_cast<ArcElement *>(btreeElement->element)->site);
 
   // Если существует событие круга для арки, его нужно удалить.
-  if(btreeElement->element.arc.event)
+  if(static_cast<ArcElement *>(btreeElement->element)->event)
   {
-    RemoveEvent(btreeElement->element.arc.event);
-    btreeElement->element.arc.event = nullptr;
+    RemoveCircleEvent(static_cast<ArcElement *>(btreeElement->element)->event);
+    static_cast<ArcElement *>(btreeElement->element)->event = nullptr;
   }
 
-  Element breakArc = btreeElement->element;
+  // Удаляем элемент текущего листа (arc1) и вставляем новое поддерево вида:
+  //      BP1
+  //     |   |
+  //  arc1   BP2
+  //        |   |
+  //     arc2   arc1
 
-  // Создаем два новых брекпоинта
-  // лежащих слева и справа от вставляемой параболы.
-  Element bpLeft(new BreakPoint(BreakPoint::POINT));
-  Element bpRight(new BreakPoint(BreakPoint::POINT));
+  const Site *siteArc1 = static_cast<ArcElement *>(btreeElement->element)->site;
 
-  // Добавим новую грань
-  Edge newEdge;
-  newEdge.bp1 = bpLeft.breakPoint;
-  newEdge.bp2 = bpRight.breakPoint;
-  newEdge.p1 = breakArc.arc.parabola;
-  newEdge.p2 = parabola;
-  mEdgeList.push_back(newEdge);
+  // Удаляем элемент узла arc1 и сам узел.
+  delete static_cast<ArcElement *>(btreeElement->element);
+  btreeElement->element = nullptr;
 
-  // Создаем две новых арки, лежищих слева и справа
-  // от вставляемой параболы
-  Element arcLeft(breakArc);
-  Element arcRight(breakArc);
+  // Создаем 4 новых элемента дерева.
+  // И 1 элемент заменяем.
+  // 3 арки и 2 брекпоинта.
 
-  // Создаем поддерево
-  // Элементом правого листа будет правый брекпоинт.
-  btreeElement->right = new BtreeElement(bpRight);
-  btreeElement->right->parent = btreeElement;
-  // Элементом  левого листа будет левая арка.
-  btreeElement->left = new BtreeElement(arcLeft);
-  btreeElement->left->parent = btreeElement;
-  // Элементом текущего листа будет левый брекпоинт
+  BtreeElement *arcLeft = new BtreeElement(new ArcElement(siteArc1));
+  BtreeElement *arcMid = new BtreeElement(new ArcElement(site));
+  BtreeElement *arcRight = new BtreeElement(new ArcElement(siteArc1));
+
+  IElement *bpLeft = NewBPElement();
+  BtreeElement *bpRight = new BtreeElement(NewBPElement());
+
+  // Связываем элементы.
   btreeElement->element = bpLeft;
 
-  // левый лист - вставляемая парабола.
-  btreeElement->right->left = new BtreeElement(parabola);
-  btreeElement->right->left->parent = btreeElement->right;
-  // правый лист - правая арка.
-  btreeElement->right->right = new BtreeElement(arcRight);
-  btreeElement->right->right->parent = btreeElement->right;
+  btreeElement->left = arcLeft;
+  arcLeft->parent = btreeElement;
+
+  btreeElement->right = bpRight;
+  bpRight->parent = btreeElement;
+
+  bpRight->left = arcMid;
+  arcMid->parent = bpRight;
+
+  bpRight->right = arcRight;
+  arcRight->parent = bpRight;
+
+  // Проверяем событие круга для левой и правой арки.
+  CheckCircleEvent(LeftArcBP(arcLeft).second, arcLeft, arcMid);
+  CheckCircleEvent(arcMid, arcRight, RightArcBP(arcRight).second);
+
+  // Новая грань появилась между аркой в которую вставляем и новой аркой.
+  NewEdge(bpLeft, bpRight->element, siteArc1, site);
 }
 
-
+#ifdef VORONOI_DEBUG_INFO
 void Voronoi::GenerateListsBPA()
 {
   mListArc.clear();
-  mListBreakPoints.clear();
+  mListBP.clear();
   GenerateListsBPA(mHead);
 }
 
@@ -161,101 +141,175 @@ void Voronoi::GenerateListsBPA(BtreeElement *node)
   else
   {
     GenerateListsBPA(node->left);
-    mListBreakPoints.push_back(node);
+    mListBP.push_back(node);
     GenerateListsBPA(node->right);
   }
 }
 
-void Voronoi::RemoveArc(unsigned int arcPos, Point intersection)
+void Voronoi::PrintListsBPA()
 {
-  assert(arcPos > 0 && arcPos + 1 < mListArc.size());
-  assert(mListBreakPoints.size() + 1 == mListArc.size());
+  printf("arcs: ");
+  for(auto it = mListArc.begin(); it != mListArc.end(); ++it)
+  {
+    printf("%i, ", static_cast<ArcElement *>((*it)->element)->site->id);
+  }
+  printf("\nbp: ");
+  for(auto it = mListBP.begin(); it != mListBP.end(); ++it)
+  {
+    printf("%i, ", static_cast<BPElement *>((*it)->element)->id);
+  }
+  printf("\n");
+
+}
+
+void Voronoi::PrintEdgeList()
+{
+  
+  for(auto it = mListEdge.begin(); it != mListEdge.end(); ++it)
+  {
+    printf("[e: {%s:%s}]\n",
+           (*it)->el1->type == IElement::BREAK_POINT ? "b" : "p",
+           (*it)->el2->type == IElement::BREAK_POINT ? "b" : "p"
+          );
+  }
+  
+}
+#endif
+
+void Voronoi::RemoveTree()
+{
+  RemoveTree(mHead);
+  mHead = nullptr;
+}
+
+void Voronoi::RemoveTree(BtreeElement *node)
+{
+  if(node == nullptr)
+  {
+    return;
+  }
+
+  if(node->left)
+  {
+    RemoveTree(node->left);
+  }
+
+  if(node->right)
+  {
+    RemoveTree(node->right);
+  }
+
+  if(node->element->type == IElement::ARC)
+  {
+    delete static_cast<ArcElement *>(node->element);
+  }
+  delete node;
+}
+
+Voronoi::BPElement *Voronoi::NewBPElement()
+{
+  BPElement *element = new BPElement();
+  mListPoints.push_back(element);
+  return element;
+}
+
+Voronoi::EPElement *Voronoi::NewEPElement(const Point &p, const Site *s1, const Site *s2, const Site *s3)
+{
+  EPElement *element = new EPElement(p, s1, s2, s3);
+  mListPoints.push_back(element);
+  return element;
+}
+
+void Voronoi::RemoveArc(BtreeElement *arc, const Point &ep)
+{
+  assert(arc);
+  assert(static_cast<ArcElement *>(arc->element)->event);
+
+  std::pair<BtreeElement *, BtreeElement *> left = LeftArcBP(arc);
+  std::pair<BtreeElement *, BtreeElement *> right = RightArcBP(arc);
+
+  // Арки слева и справа должны существовать.
+  assert(left.second && right.second);
 
   // Ищем левый и правый брекпоинты от арки.
-  BtreeElement *bpLeft = mListBreakPoints[arcPos - 1];
-  BtreeElement *bpRight = mListBreakPoints[arcPos];
-  BtreeElement *arc = mListArc[arcPos];
+  BtreeElement *bpLeft = left.first;
+  BtreeElement *bpRight = right.first;
 
-  // Удалим события круга для левой и правой арки.
-  if(mListArc[arcPos - 1]->element.arc.event)
+  // Удаляем событие круга для левой и правой арки.
+  if(static_cast<ArcElement *>(left.second->element)->event)
   {
-    RemoveEvent(mListArc[arcPos - 1]->element.arc.event);
-    mListArc[arcPos - 1]->element.arc.event = nullptr;
+    RemoveCircleEvent(static_cast<ArcElement *>(left.second->element)->event);
   }
-  if(mListArc[arcPos + 1]->element.arc.event)
+  if(static_cast<ArcElement *>(right.second->element)->event)
   {
-    RemoveEvent(mListArc[arcPos + 1]->element.arc.event);
-    mListArc[arcPos + 1]->element.arc.event = nullptr;
+    RemoveCircleEvent(static_cast<ArcElement *>(right.second->element)->event);
   }
-
 
   // Смотрим какой из брекпоинтов является родителем арки, а какой нет.
-  BtreeElement *bpArcFirst = arc->parent; // Родитель арки, нужно удалить
-  BtreeElement *bpArcSecond = nullptr;    // Не родитель, нужно модифицировать.
-  if(bpArcFirst == bpLeft)
+  BtreeElement *bpArcRemove = arc->parent;  // Родитель арки, нужно удалить
+  BtreeElement *bpArcModify = nullptr;      // Не родитель, нужно модифицировать.
+
+  if(bpArcRemove == bpLeft)
   {
-    bpArcSecond = bpRight;
+    bpArcModify = bpRight;
   }
-  else if (bpArcFirst == bpRight)
+  else if (bpArcRemove == bpRight)
   {
-    bpArcSecond = bpLeft;
+    bpArcModify = bpLeft;
   }
-  assert(bpArcSecond);
+  assert(bpArcModify);
 
   // Точка соединения трех граней
-  BreakPoint *endPoint = new BreakPoint(BreakPoint::END_POINT);
-  endPoint->point = intersection;
+  EPElement *endPoint = NewEPElement(ep, static_cast<ArcElement *>(left.second->element)->site,
+                                         static_cast<ArcElement *>(arc->element)->site,
+                                         static_cast<ArcElement *>(right.second->element)->site);
 
-  BreakPoint *newBreakPoint = new BreakPoint(BreakPoint::POINT);
+  // Новый брекпоинт.
+  BPElement *newBreakPoint = NewBPElement();
 
-  // Обновим список граней. Лучи превращаются в отрезки, прямые в лучи.
-  UpdateEdge(bpLeft->element.breakPoint, endPoint);
-  UpdateEdge(bpRight->element.breakPoint, endPoint);
+  // Обновляем текущие грани
+  UpdateEdge(static_cast<BPElement *>(bpLeft->element), 
+             static_cast<BPElement *>(bpRight->element), 
+             endPoint);
+  // И добавляем новую грань.
+  NewEdge(newBreakPoint, endPoint, 
+          static_cast<ArcElement *>(left.second->element)->site, 
+          static_cast<ArcElement *>(right.second->element)->site);
 
-  // Добавим точку пересечения граней в список.
-  //FindedBP(intersection, arc->element.arc.parabola->focus);
-  //FindedBP(intersection, mListArc[arcPos - 1]->element.arc.parabola->focus);  // Левая арка
-  //FindedBP(intersection, mListArc[arcPos + 1]->element.arc.parabola->focus);  // Правая арка
 
-  // Добавим новую грань
-  Edge newEdge;
-  newEdge.bp1 = newBreakPoint;
-  newEdge.bp2 = endPoint;
-  newEdge.p1 = mListArc[arcPos - 1]->element.arc.parabola;
-  newEdge.p2 = mListArc[arcPos + 1]->element.arc.parabola;
-  mEdgeList.push_back(newEdge);
-
-  // Удаляем брекпоинты
-  delete bpArcFirst->element.breakPoint;
-  delete bpArcSecond->element.breakPoint;
+  //      BPM                 BPM
+  //     |   |               |   |
+  //  arc1   BPR     ->   arc1   arc2
+  //        |   |           
+  //      arc   arc2       
 
   // Изменяем брекпоинты
   // Вместо двух брекпоинтов будет один.
-  bpArcFirst->element.breakPoint = nullptr;
-  bpArcSecond->element = Element(newBreakPoint);
+  bpArcRemove->element = nullptr;
+  bpArcModify->element = newBreakPoint;
 
   // Ищем второго ребенка для первого брекпоинта(который нужно удалить).
   // Первый ребенок - наша арка.
   BtreeElement *bpArcChildSecond = nullptr;
-  if(bpArcFirst->left == arc)
+  if(bpArcRemove->left == arc)
   {
-    bpArcChildSecond = bpArcFirst->right;
+    bpArcChildSecond = bpArcRemove->right;
   }
-  else if(bpArcFirst->right == arc)
+  else if(bpArcRemove->right == arc)
   {
-    bpArcChildSecond = bpArcFirst->left;
+    bpArcChildSecond = bpArcRemove->left;
   }
   assert(bpArcChildSecond);
 
   // Ищем родителя для первого брекпоинта.
-  BtreeElement *bpArcFirstParent = bpArcFirst->parent;
+  BtreeElement *bpArcFirstParent = bpArcRemove->parent;
   // Соединяем второго ребенка для первого брекпоинта и отца первого брекпоинта.
-  if(bpArcFirstParent->left == bpArcFirst)
+  if(bpArcFirstParent->left == bpArcRemove)
   {
     bpArcFirstParent->left = bpArcChildSecond;
     bpArcChildSecond->parent = bpArcFirstParent;
   }
-  else if(bpArcFirstParent->right == bpArcFirst)
+  else if(bpArcFirstParent->right == bpArcRemove)
   {
     bpArcFirstParent->right = bpArcChildSecond;
     bpArcChildSecond->parent = bpArcFirstParent;
@@ -266,343 +320,674 @@ void Voronoi::RemoveArc(unsigned int arcPos, Point intersection)
   }
 
   // Удаляем арку и первый брекпоинт.
+  delete static_cast<ArcElement *>(arc->element);
   delete arc;
-  delete bpArcFirst;
+  delete bpArcRemove;
+
+  // Проверяем событие круга для левой и правой арки от удаленной.
+  CheckCircleEvent(LeftArcBP(left.second).second, left.second, right.second);
+  CheckCircleEvent(left.second, right.second, RightArcBP(right.second).second);
 }
 
-void Voronoi::PrintListsBPA()
+std::pair<Voronoi::BtreeElement *, Voronoi::BtreeElement *> Voronoi::LeftArcBP(BtreeElement *element)
 {
-  printf("arcs: ");
-  for(auto it = mListArc.begin(); it != mListArc.end(); ++it)
+  assert(element);
+
+  BtreeElement *bp = LeftBP(element);
+  BtreeElement *arc = nullptr;
+  if(bp)
   {
-    printf("%i, ", (*it)->element.arc.parabola->id);
+    arc = LeftArc(bp->left);
   }
-  printf("\nbp: ");
-  for(auto it = mListBreakPoints.begin(); it != mListBreakPoints.end(); ++it)
+
+  return std::pair<BtreeElement *, BtreeElement *>(bp, arc);
+}
+
+std::pair<Voronoi::BtreeElement *, Voronoi::BtreeElement *> Voronoi::RightArcBP(BtreeElement *element)
+{
+  assert(element);
+
+  BtreeElement *bp = RightBP(element);
+  BtreeElement *arc = nullptr;
+  if(bp)
   {
-    printf("%i, ", (*it)->element.breakPoint->id);
+    arc = RightArc(bp->right);
   }
-  printf("\n");
-  for(auto it = mEdgeList.begin(); it != mEdgeList.end(); ++it)
+
+  return std::pair<BtreeElement *, BtreeElement *>(bp, arc);
+}
+
+Voronoi::BtreeElement *Voronoi::LeftBP(BtreeElement *element)
+{
+  assert(element);
+
+  if(!element->parent)
   {
-    printf("[bp:%s%i:%s%i; arc:%i:%i; p1:%f,%f p2:%f,%f]\n",
-           (*it).bp1->type == BreakPoint::POINT ? "b" : "p", (*it).bp1->id,
-           (*it).bp2->type == BreakPoint::POINT ? "b" : "p", (*it).bp2->id,
-           (*it).p1->id, (*it).p2->id,
-           //(*it).p1->focus.x, (*it).p1->focus.y,
-           //(*it).p2->focus.x, (*it).p2->focus.y,
-           (*it).bp1->point.x, (*it).bp1->point.y,
-           (*it).bp2->point.x, (*it).bp2->point.y);
+    return nullptr;
+  }
+
+  if(element->parent->left == element)
+  {
+    return LeftBP(element->parent);
+  }
+
+  return element->parent;
+}
+
+Voronoi::BtreeElement *Voronoi::LeftArc(BtreeElement *element)
+{
+  assert(element);
+
+  if(element->right)
+  {
+    return LeftArc(element->right);
+  }
+
+  assert(IsList(element));
+  return element;
+}
+
+Voronoi::BtreeElement *Voronoi::RightBP(BtreeElement *element)
+{
+  assert(element);
+
+  if(!element->parent)
+  {
+    return nullptr;
+  }
+
+  if(element->parent->right == element)
+  {
+    return RightBP(element->parent);
+  }
+
+  return element->parent;
+}
+
+Voronoi::BtreeElement *Voronoi::RightArc(BtreeElement *element)
+{
+  assert(element);
+
+  if(element->left)
+  {
+    return RightArc(element->left);
+  }
+
+  assert(IsList(element));
+  return element;
+}
+
+void Voronoi::CheckCircleEvent(BtreeElement *leftArc, BtreeElement *arc, BtreeElement *rightArc)
+{
+  assert(arc);
+  if(!leftArc || !rightArc)
+  {
+    return;
+  }
+  assert(leftArc->element->type == IElement::ARC);
+  assert(arc->element->type == IElement::ARC);
+  assert(rightArc->element->type == IElement::ARC);
+
+  // Если событие существует для этой арки, ничего не делаем.
+  if(static_cast<ArcElement *>(arc->element)->event)
+  {
+    return;
+  }
+
+  // Проверяем на совпадение точек.
+  if(static_cast<ArcElement *>(leftArc->element)->site  == static_cast<ArcElement *>(arc->element)->site ||
+     static_cast<ArcElement *>(arc->element)->site      == static_cast<ArcElement *>(rightArc->element)->site ||
+     static_cast<ArcElement *>(rightArc->element)->site == static_cast<ArcElement *>(leftArc->element)->site)
+  {
+    return;
+  }
+
+  // Если точки лежат на одной прямой - выходим.
+  double rotation = RotationPoint(static_cast<ArcElement *>(leftArc->element)->site->pos,
+                                  static_cast<ArcElement *>(arc->element)->site->pos,
+                                  static_cast<ArcElement *>(rightArc->element)->site->pos);
+
+  if(rotation == 0)
+  {
+    return;
+  }
+
+  // Создаем событие круга, если точки лежат по часовой.
+  if(rotation > 0)
+  {
+    return;
+  }
+
+  // Ищем центр окружности по трем точкам.
+  Point c = CreateCircle(static_cast<ArcElement *>(leftArc->element)->site->pos,
+                         static_cast<ArcElement *>(arc->element)->site->pos,
+                         static_cast<ArcElement *>(rightArc->element)->site->pos);
+
+  // Ищем радиус окружности.
+  double r = sqrt(pow(static_cast<ArcElement *>(arc->element)->site->pos.x - c.x, 2) +
+                  pow(static_cast<ArcElement *>(arc->element)->site->pos.y - c.y, 2));
+
+  Point pos(c.x, c.y - r);
+
+  // Добавляем событие в том случае, если оно не выше заметающей прямой.
+  if(pos.y <= mSweepLine + EPS)
+  {
+    NewCircleEvent(arc, pos, c);
   }
 }
 
-/// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// Короче тут есть утечка, хз когда удалять END_POINT
-void Voronoi::UpdateEdge(BreakPoint *removedPoint, BreakPoint *endPoint)
+void Voronoi::NewCircleEvent(BtreeElement *arc, const Point &point, const Point &center)
 {
-  assert(removedPoint && removedPoint->type == BreakPoint::POINT);
-  assert(endPoint && endPoint->type == BreakPoint::END_POINT);
+  assert(arc);
+  assert(arc->element);
+  assert(arc->element->type == IElement::ARC);
+  assert(!static_cast<ArcElement *>(arc->element)->event);
 
-  // Если первая точка та, которую нужно удалить, то если вторая точка - конечная,
-  // получился отрезок - удалим. в противном случае первая точка заменяется конечной.
-  for(auto it = mEdgeList.begin(); it != mEdgeList.end();)
-  {
-    assert((*it).bp1 != (*it).bp2);
-    if((*it).bp1 == removedPoint)
-    {
-      // Удалим точку пересечения и грань, если грань ограничена двумя EndPoint
-      if((*it).bp2->type == BreakPoint::END_POINT)
-      {
-        Edge &edge = (*it);
-        // Отрезок между добавляемым ендпоинтом и найденным ендпоинтом.
-        // (*it).bp1 здесь брекпоинт, который нужно заменить на endPoint,
-        // но т.к. у нас получится грань с двумя ендпоинтами, удаляем ее.
-        auto points = IntersectRectSegment(mRect, Segment(endPoint->point, edge.bp2->point));
-        InsertBP(points, edge.p1->focus, edge.p2->focus);
-        it = mEdgeList.erase(it);
-        continue;
-      }
-      else
-      {
-        (*it).bp1 = endPoint;
-      }
-    }
-    else if((*it).bp2 == removedPoint)
-    {
-      if((*it).bp1->type == BreakPoint::END_POINT)
-      {
-        Edge &edge = (*it);
-        auto points = IntersectRectSegment(mRect, Segment(edge.bp1->point, endPoint->point));
-        InsertBP(points, edge.p1->focus, edge.p2->focus);
-        it = mEdgeList.erase(it);
-        continue;
-      }
-      else
-      {
-        (*it).bp2 = endPoint;
-      }
-    }
-    ++it;
-  }
+  // Создаем событие круга для данной арки.
+  CircleEvent *event = new CircleEvent(arc, point, center);
+
+  // Добавляем событие в арку
+  static_cast<ArcElement *>(arc->element)->event = event;
+
+  // Добавляем событие в список.
+  mEvents.insert(event);
 }
 
-void Voronoi::CalcBPPos(unsigned int bPPos)
+void Voronoi::RemoveCircleEvent(CircleEvent *event)
 {
-  assert(bPPos < mListBreakPoints.size());
-  assert(mListBreakPoints.size() + 1 == mListArc.size());
+  assert(event);
+  assert(event->type == IEvent::CIRCLE);
+  assert(event->arc);
+  assert(event->arc->element);
+  assert(event->arc->element->type == IElement::ARC);
+  assert(static_cast<ArcElement *>(event->arc->element)->event == event);
+  
+  // Для данной арки больше нет события круга.
+  static_cast<ArcElement *>(event->arc->element)->event = nullptr;
+  
+  // Ищем все события с такой высотой.
+  auto range = mEvents.equal_range(event);
 
-  // Ищем брекпоинт и арку слева и справа.
-  BreakPoint *bp = mListBreakPoints[bPPos]->element.breakPoint;
-  Parabola *arcLeft = mListArc[bPPos]->element.arc.parabola;
-  Parabola *arcRight = mListArc[bPPos + 1]->element.arc.parabola;
-  assert(bp->type == BreakPoint::POINT);
-
-  // Ищем отрезок, являющийся пересечением парабол.
-  // т.к. параболы не могут находиться на одном уровне по y и они
-  // одинаково направлены, у них только 2 точки пересечения.
-  bp->point = IntersectParabols(mSweptLine, arcLeft->focus, arcRight->focus);
-}
-
-void Voronoi::CalcBPPos()
-{
-  for(unsigned int i = 0; i < mListBreakPoints.size(); ++i)
+  // Удаляем только пришедшее событие.
+  for(auto it = range.first; it != range.second; ++it)
   {
-    CalcBPPos(i);
-  }
-}
-
-void Voronoi::GenerateCircleEvent()
-{
-  for(int i = 1; i < static_cast<int>(mListArc.size()) - 1; ++i)
-  {
-    BtreeElement *arc0 = mListArc[i - 1];
-    BtreeElement *arc1 = mListArc[i];
-    BtreeElement *arc2 = mListArc[i + 1];
-
-    // Если событие существует для этой арки, пропускаем ее.
-    if(arc1->element.arc.event)
-    {
-      continue;
-    }
-
-    // Если точки лежат на одной прямой или против часовой - выходим.
-    if(RotationPoint(arc0->element.arc.parabola->focus, arc1->element.arc.parabola->focus, arc2->element.arc.parabola->focus) >= 0)
-    {
-      continue;
-    }
-
-    // Ищем центр окружности по трем точкам.
-    Point c = CreateCircle(arc0->element.arc.parabola->focus,
-                           arc1->element.arc.parabola->focus,
-                           arc2->element.arc.parabola->focus);
-
-    // Ищем радиус окружности.
-    double r = sqrt(pow(arc0->element.arc.parabola->focus.x - c.x, 2) +
-                    pow(arc0->element.arc.parabola->focus.y - c.y, 2));
-
-    // Создаем событие круга.
-    CircleEvent event(arc1);
-    event.pos = Point(c.x, c.y - r);
-    event.center = c;
-
-    // Добавляем событие в том случае, если оно не выше заметающей прямой.
-    if(event.pos.y <= mSweptLine)
-    {
-      Event *e = new Event(event);
-      arc1->element.arc.event = e;
-      mEvents.insert(e); 
-    }
-  }
-}
-
-void Voronoi::RemoveEvent(Event *event)
-{
-  for(auto it = mEvents.begin(); it != mEvents.end(); ++it)
-  {
-    if(event == (*it))
+    if(*it == event)
     {
       mEvents.erase(it);
       break;
     }
   }
+  delete static_cast<CircleEvent *>(event);
+}
 
-  delete event;
+
+void Voronoi::NewSiteEvent(const Site *site)
+{
+  assert(site);
+  // Создаем событие точки.
+  SiteEvent *event = new SiteEvent(site);
+
+  // Добавляем событие в список.
+  mEvents.insert(event);
+}
+
+void Voronoi::NewEdge(IElement *el1, IElement *el2, const Site *site1, const Site *site2)
+{
+  assert(el1 && el2 && site1 && site2);
+  assert(el1->type == IElement::BREAK_POINT || el1->type == IElement::END_POINT);
+  assert(el2->type == IElement::BREAK_POINT || el2->type == IElement::END_POINT);
+
+  Edge *edge = new Edge;
+  
+  edge->el1 = el1;
+  edge->el2 = el2;
+  edge->site1 = site1;
+  edge->site2 = site2;
+
+  if(el1->type == IElement::BREAK_POINT)
+  {
+    static_cast<BPElement *>(el1)->edge = edge;
+  }
+  if(el2->type == IElement::BREAK_POINT)
+  {
+    static_cast<BPElement *>(el2)->edge = edge;
+  }
+
+  mListEdge.push_back(edge);
+}
+
+void Voronoi::UpdateEdge(BPElement *el1, BPElement *el2, EPElement *ep)
+{
+  assert(el1 && el2 && ep);
+  assert(el1->edge && el2->edge);
+  assert(el1->edge->el1 == el1 || el1->edge->el2 == el1);
+  assert(el2->edge->el1 == el2 || el2->edge->el2 == el2);
+
+  el1->edge->el1 == el1 ? el1->edge->el1 = ep : el1->edge->el2 = ep;
+  el1->edge = nullptr;
+
+  el2->edge->el1 == el2 ? el2->edge->el1 = ep : el2->edge->el2 = ep;
+  el2->edge = nullptr;
+}
+
+void Voronoi::Release()
+{
+  for(auto it = mSiteList.begin(); it != mSiteList.end(); ++it)
+  {
+    delete (*it);
+  }
+
+  for(auto it = mListPoints.begin(); it != mListPoints.end(); ++it)
+  {
+    assert((*it)->type == IElement::BREAK_POINT || (*it)->type == IElement::END_POINT);
+    
+    if((*it)->type == IElement::BREAK_POINT)
+    {
+      delete static_cast<BPElement *>(*it);
+      continue;
+    }
+    if((*it)->type == IElement::END_POINT)
+    {
+      delete static_cast<EPElement *>(*it);
+      continue;
+    }  
+  }
+
+  for(auto it = mListEdge.begin(); it != mListEdge.end(); ++it)
+  {
+    delete (*it);
+  }
+
+  mSiteList.clear();
+  mListPoints.clear();
+  mEvents.clear();
+  mListEdge.clear();
+}
+
+Voronoi::BtreeElement *Voronoi::FindArc(double x)
+{
+  return FindArc(mHead, x);
+}
+
+Voronoi::BtreeElement *Voronoi::FindArc(BtreeElement *bp, double x)
+{
+  assert(bp);
+  assert(bp->element);
+  assert(bp->element->type == IElement::BREAK_POINT || 
+         bp->element->type == IElement::ARC);
+
+  if(bp->element->type == IElement::ARC)
+  {
+    assert(IsList(bp));
+    return bp;
+  }
+
+  // Ищем арки слева и справа от текущего брекпоинта.
+  BtreeElement *left = LeftArc(bp->left);
+  BtreeElement *right = RightArc(bp->right);
+
+  // Вычисляем x координату брекпоинта.
+  double bpx = IntersectParabols(mSweepLine,
+                                 static_cast<ArcElement *>(left->element)->site->pos, 
+                                 static_cast<ArcElement *>(right->element)->site->pos);
+
+  if(x > bpx)
+  {
+    return FindArc(bp->right, x);
+  }
+
+  return FindArc(bp->left, x);
 }
 
 void Voronoi::Process()
 {
-  if(mEvents.empty())
-    return;
+  printf("Process\n");
 
-  Event *event = *(mEvents.begin());
-  assert(event->type == Event::SITE_EVENT);
+  // Оптимизация.
+  // Раньше все точки и события добавлялись в списки до построения диаграммы.
+  // Сейчас точки будут добавляться во время процесса построения.
+  // Так расходуется меньше памяти и скорость удаления события круга существенно увеличивается,
+  // т.к. количество событий в списке событий много меньше.
+  auto itSite = mInPoints.begin();
+  AddSite(itSite);
 
-  mSweptLine = event->height;
+  // Вставляем первую арку.
+  std::multiset<IEvent *, EventsComparator>::const_iterator event = mEvents.begin();
+  assert((*event)->type == IEvent::SITE);
+  InsertSiteFirstHead(static_cast<SiteEvent *>(*event)->site);
+  mSweepLine = static_cast<SiteEvent *>(*event)->site->pos.y;
 
-  InsertArcHead(event->se.parabola);
-  RemoveEvent(event);
-  GenerateListsBPA();
+  // Удаляем событие точки.
+  delete static_cast<SiteEvent *>(*event);
+  mEvents.erase(event);
 
-  // Проходим по всем событиям
+  AddSite(itSite);
+
+  // Вставляем все самые верхние точки, лежащие на одной высоте.
   while(!mEvents.empty())
   {
-    event = *(mEvents.begin());
-    mSweptLine = event->height;
+    event = mEvents.begin();
+    assert((*event)->type == IEvent::SITE);
 
-    switch(event->type)
+    if(mSweepLine > static_cast<SiteEvent *>(*event)->site->pos.y)
     {
-    case Event::SITE_EVENT:
-      {
-        // Вычислять кооринаты брекпоинтов нужно перед вставкой новой арки, т.к.
-        // Мы гарантированно спустимся вниз по y и расстояние между параболой и 
-        // заметающей прямой будет гарантированно больше 0.
-        CalcBPPos();
-        assert(event->se.parabola);
-        // Ищем параболу в которую нужно вставить.
-        InsertArc(FindInsertArc(event->se.parabola), event->se.parabola);
-      }
-
       break;
-    case Event::CIRCLE_EVENT:
-      {
-        assert(event->ce.arcNode);
-        // Ищем номер параболы в списке.
-        auto it = std::find(mListArc.begin(), mListArc.end(), event->ce.arcNode);
-        assert(it != mListArc.end());
+    }
+    InsertSiteTop(static_cast<SiteEvent *>(*event)->site);
+    delete static_cast<SiteEvent *>(*event);
+    mEvents.erase(event);
 
-        // Удалим параболу из списка.
-        RemoveArc(std::distance(mListArc.begin(), it), event->ce.center);
+    AddSite(itSite);
+  }
+
+  while(!mEvents.empty())
+  {
+    event = mEvents.begin();
+    // Заметающая прямая нужна для вычислений координат брекпоинтов и
+    // при возникновении нового события круга.
+    //mSweepLine = (*event)->pos.y;
+
+    switch((*event)->type)
+    {
+    case IEvent::SITE:
+      {
+        mSweepLine = static_cast<SiteEvent *>(*event)->site->pos.y;
+        // Обрабатываем событие точки.
+        InsertArc(FindArc(static_cast<SiteEvent *>(*event)->site->pos.x), static_cast<SiteEvent *>(*event)->site);
+        delete static_cast<SiteEvent *>(*event);
+        mEvents.erase(event);
+
+        AddSite(itSite);
+      }
+      break;
+    case IEvent::CIRCLE:
+      {
+        mSweepLine = static_cast<CircleEvent *>(*event)->pos.y;
+        RemoveArc(static_cast<CircleEvent *>(*event)->arc, static_cast<CircleEvent *>(*event)->center);
+        delete static_cast<CircleEvent *>(*event);
+        mEvents.erase(event);
       }
       break;
     default:
-      {
-        assert(true);
-      }
+      assert(true);
     }
-    RemoveEvent(event);
-    GenerateListsBPA();
-    GenerateCircleEvent();
+
+    //GenerateListsBPA();
     //PrintListsBPA();
   }
-  // Смещаемся вниз и вычисляем брекпоинты
-  mSweptLine -= 1;
-  CalcBPPos();
-  PostProcess();
+
+  RemoveTree();
+  CalcEdge();
 }
 
-BtreeElement *Voronoi::FindInsertArc(Parabola *parabola)
+void Voronoi::CalcEdge()
 {
-  assert(parabola);
-  assert(!mListArc.empty());
-  double pos = parabola->focus.x;
-
-  if(mListBreakPoints.empty())
+  printf("PostProcess\n");
+  for(auto it = mListEdge.begin(); it != mListEdge.end(); ++it)
   {
-    assert(mListArc.size() == 1);
-    return *mListArc.begin();
+    Edge *edge = (*it);
+    assert(edge->el1->type == IElement::BREAK_POINT || 
+           edge->el1->type == IElement::END_POINT);
+    assert(edge->el2->type == IElement::BREAK_POINT || 
+           edge->el2->type == IElement::END_POINT);
+    assert(edge->site1 && edge->site2);
+
+    if(edge->el1->type == IElement::END_POINT &&
+       edge->el2->type == IElement::END_POINT)
+    {
+      // Обрабатываем отрезок.
+      auto points = IntersectRectSegment(mRect, Segment(static_cast<EPElement *>(edge->el1)->pos,
+                                                        static_cast<EPElement *>(edge->el2)->pos));
+
+      InsertPoligonPoint(points, edge->site1->pos, edge->site2->pos);
+      continue;
+    }
+    if(edge->el1->type == IElement::BREAK_POINT &&
+       edge->el2->type == IElement::BREAK_POINT)
+    {
+      // Обрабатываем прямую.
+      auto points = IntersectRectLine(mRect, 
+                                      Perpendicular(Line(edge->site1->pos, edge->site2->pos),
+                                      Center(edge->site1->pos, edge->site2->pos)));
+      
+      InsertPoligonPoint(points, edge->site1->pos, edge->site2->pos);
+
+      continue;
+    }
+    // Обрабатываем луч.
+    EPElement *ep = edge->el1->type == IElement::END_POINT ? 
+      static_cast<EPElement *>(edge->el1) :
+      static_cast<EPElement *>(edge->el2);
+
+    // Ищем точку C в треугольнике.
+    const Site *dirPoint = ep->site1;
+    if(dirPoint == edge->site1 || dirPoint == edge->site2)
+    {
+      dirPoint = ep->site2;
+      if(dirPoint == edge->site1 || dirPoint == edge->site2)
+      {
+        dirPoint = ep->site3;
+        assert(dirPoint != edge->site1 && dirPoint != edge->site2);
+      }
+    }
+    
+    // Ищем срединный перпендикуляр к AB.
+    // Эта линия должна проходить через E (центр окружности).
+    Point center = Center(edge->site1->pos, edge->site2->pos);
+    Line rayLine = Perpendicular(Line(edge->site1->pos, edge->site2->pos), center);
+    
+    // Ищем еще один перпендикуляр к данной линии в точку C.
+    Line perpRay = Perpendicular(rayLine, dirPoint->pos);
+    Point dir = ep->pos - IntersectLines(rayLine, perpRay);
+
+    auto points = IntersectRectRay(mRect, Ray(ep->pos, center + dir));
+
+    InsertPoligonPoint(points, edge->site1->pos, edge->site2->pos);
+
+    continue;
   }
 
-  for(unsigned int i = 0; i < mListBreakPoints.size(); ++i)
+  mDiagramData[mFinderAnglePoints.mSitelb].push_back(mRect.lb - mFinderAnglePoints.mSitelb);
+  mDiagramData[mFinderAnglePoints.mSitelt].push_back(Point(0, mRect.rt.y) - mFinderAnglePoints.mSitelt);
+  mDiagramData[mFinderAnglePoints.mSitert].push_back(mRect.rt - mFinderAnglePoints.mSitert);
+  mDiagramData[mFinderAnglePoints.mSiterb].push_back(Point(mRect.rt.x, 0) - mFinderAnglePoints.mSiterb);
+}
+
+void Voronoi::InsertPoligonPoint(const std::list<Point> &points, const Point &site1, const Point &site2)
+{
+  for(auto it = points.begin(); it != points.end(); ++it)
   {
-    assert(mListBreakPoints[i]->element.type == Element::BREAK_POINT);
-    if(mListBreakPoints[i]->element.breakPoint->point.x > pos)
+    const glm::vec2 p1((*it) - site1);
+    const glm::vec2 p2((*it) - site2);
+
+    auto &list1 = mDiagramData[site1];
+    auto &list2 = mDiagramData[site2];
+
+    // Элементы в списке граней расположены геометрически примерно сверху вниз.
+    // Соответственно массив точек points подается практически также.
+    // В этом же порядке мы добавляем точки в список полигонов.
+    // Это означает, что необходимо проверять точки на дубликаты, 
+    // проходясь с конца списка вершин в полигоне. Велика вероятность, 
+    // что надо сделать всего пару проверок.
+
+    if(list1.empty())
     {
-      return mListArc[i];
+      list1.reserve(9);
+      list1.push_back(p1);
+    }
+    else
+    if(std::find(list1.rbegin(), list1.rend(), p1) == list1.rend())
+    {
+      list1.push_back(p1);
+    }
+
+    if(list2.empty())
+    {
+      list2.reserve(9);
+      list2.push_back(p2);
+    }
+    else
+    if(std::find(list2.rbegin(), list2.rend(), p2) == list2.rend())
+    {
+      list2.push_back(p2);
+    }
+    //mDiagramData[site1].push_back((*it) - site1);
+    //mDiagramData[site2].push_back((*it) - site2);
+  }
+
+  /*
+  for(auto it = mDiagramData.begin(); it != mDiagramData.end(); ++it)
+  {
+    for(auto jt = (*it).second.begin(); jt != (*it).second.end(); ++jt)
+    {
+       printf("k: [%f, %f], v: [%f, %f]\n", (*it).first.x, (*it).first.y, (*jt).x, (*jt).y);
     }
   }
+  */
+}
 
-  return mListArc[mListArc.size() - 1];
-}
-/*
-void Voronoi::FindedBP(const Point &bp, const Point &arcPos)
-{
-  mDiagramData.insert(std::make_pair<glm::vec2, glm::vec2>(glm::vec2(arcPos.x, arcPos.y), glm::vec2(bp.x, bp.y)));
-}
-*/
-const std::multimap<glm::vec2, glm::vec2, Voronoi::DDComparator> &Voronoi::GetDiagram()
+Voronoi::DiagramData Voronoi::GetDiagram()
 {
   return mDiagramData;
 }
 
-void Voronoi::PostProcess()
+void Voronoi::Sort()
 {
+//   struct
+//   {
+//     bool operator()(const glm::vec2 &a, const glm::vec2 &b) const
+//     {
+//       return atan2(a.y, a.x) > atan2(b.y, b.x);
+//     }
+//   } rotationComparator;
 
-  // Пробегаемся по оставшимся граням.
-  // Могут быть либо лучи, либо прямые.
-  for(auto it = mEdgeList.begin(); it != mEdgeList.end(); ++it)
+  // Проходим по всем полигонам и сортируем вершины полигонов против часовой.
+  for(auto it = mDiagramData.begin(); it != mDiagramData.end(); ++it)
   {
-    Edge &edge = (*it);
-    BreakPoint::BPType bptype1 = edge.bp1->type;
-    BreakPoint::BPType bptype2 = edge.bp2->type;
-    // Грань не должна быть отрезком.
-    assert(bptype1 != BreakPoint::END_POINT || bptype2 != BreakPoint::END_POINT);
+    auto &list = (*it).second;
+    //std::sort(list.begin(), list.end(), rotationComparator);
 
-    // Нашли прямую.
-    if(bptype1 == BreakPoint::POINT && bptype2 == BreakPoint::POINT)
+    // Ищем самую левую точку.
+    // Если таких точек несколько - выбираем верхную
+    auto itPos = list.begin();
+    for(auto it = list.begin(); it != list.end(); ++it)
     {
-      auto points = IntersectRectLine(mRect, Perpendicular(Line(edge.p1->focus, edge.p2->focus),
-                                                         Center(edge.p1->focus, edge.p2->focus)));
-      InsertBP(points, edge.p1->focus, edge.p2->focus);
-    }
-
-    if(bptype1 == BreakPoint::POINT && bptype2 == BreakPoint::END_POINT)
-    {
-      // Нашли луч из точки 2 в точку 1.
-      // Делаем луч перпендикулярным линии между фокусами.
-      Ray ray = PerpRayLine(Ray(edge.bp2->point, edge.bp1->point), Line(edge.p1->focus, edge.p2->focus));
-      
-      auto points = IntersectRectRay(mRect, ray);
-      InsertBP(points, edge.p1->focus, edge.p2->focus);
-    }
-
-    if(bptype1 == BreakPoint::END_POINT && bptype2 == BreakPoint::POINT)
-    {
-      Ray ray = PerpRayLine(Ray(edge.bp1->point, edge.bp2->point), Line(edge.p1->focus, edge.p2->focus));
-
-      auto points = IntersectRectRay(mRect, ray);
-      InsertBP(points, edge.p1->focus, edge.p2->focus);
-    }
-  }
-
-}
-
-void Voronoi::InsertBP(const std::list<Point> &points, const Point &arc1, const Point &arc2)
-{
-  for(auto it = points.begin(); it != points.end(); ++it)
-  {
-    glm::vec2 p((*it).x, (*it).y);
-    glm::vec2 a1(arc1.x, arc1.y);
-    glm::vec2 a2(arc2.x, arc2.y);
-
-    bool finded;
-
-    finded = false;
-    auto ela1 = mDiagramData.equal_range(a1);
-    for(auto it = ela1.first; it != ela1.second; ++it)
-    {
-      if((*it).second == p)
+      if((*itPos).x > (*it).x)
       {
-        finded = true;
-        break;
+        itPos = it;
+      }
+      else if((*itPos).x == (*it).x)
+      {
+        if((*itPos).y <= (*it).y)
+        {
+          itPos = it;
+        }
       }
     }
-    if(!finded)
-      mDiagramData.insert(std::make_pair<glm::vec2, glm::vec2>(std::move(a1), std::move(p)));
 
-    finded = false;
-    auto ela2 = mDiagramData.equal_range(a2);
-    for(auto it = ela2.first; it != ela2.second; ++it)
+    std::swap(*list.begin(), *itPos);
+    itPos = list.begin();
+    auto const &point = *itPos;
+    ++itPos;
+
+    std::sort(itPos, list.end(), [point](const glm::vec2 &a,const glm::vec2 &b)
     {
-      if((*it).second == p)
-      {
-        finded = true;
-        break;
-      }
-    }
-    if(!finded)
-      mDiagramData.insert(std::make_pair<glm::vec2, glm::vec2>(std::move(a2), std::move(p)));
+      return RotationPoint(point, a, b) > 0;
+    });
+
   }
 }
+
+void Voronoi::AddSite(std::set<glm::vec2, SiteComparator>::const_iterator &itSite)
+{
+  if(itSite != mInPoints.end())
+  {
+    Site *site = new Site(*itSite);
+    mSiteList.push_back(site);
+    mFinderAnglePoints.Check(site->pos);
+    NewSiteEvent(site);
+    ++itSite;
+  }
+}
+
+void Voronoi::InsertSiteTop(const Site *site)
+{
+  assert(site);
+  assert(mHead);
+  // Точки, лежащие на одном уровне, отсортированы справа налево.
+  // Поэтому вставляем в голову дерева поддерево вида:
+  //
+  //    arc1          BP
+  //          ->     |  |
+  //              arc2  arc1
+  // Где BP - новый брекпоинт, arc2 - новая арка, arc1 - старый корень дерева.
+
+  // Создаем элементы.
+  BtreeElement *newArc = new BtreeElement(new ArcElement(site));
+  BtreeElement *newBp = new BtreeElement(NewBPElement());
+  IElement *bpTop = NewBPElement();
+
+  // Связываем элементы дерева.
+  newBp->left = newArc;
+  newArc->parent = newBp;
+
+  newBp->right = mHead;
+  mHead->parent = newBp;
+
+  mHead = newBp;
+
+  // Новая грань появилась между аркой в которую вставляем и новой аркой.
+  NewEdge(newBp->element, bpTop, 
+          static_cast<ArcElement *>(newArc->element)->site, 
+          static_cast<ArcElement *>(RightArc(newBp->right)->element)->site);
+}
+
+
+Voronoi::FinderAnglePoints::FinderAnglePoints(const Rect &rect)
+  : mRect(rect)
+{
+  Clear();
+}
+
+void Voronoi::FinderAnglePoints::Check(const Point &point)
+{
+  // Измеряем квадрат расстояния от этой точки до каждого из углов.
+
+  double distlb = (point.x - 0) * (point.x - 0) + (point.y - 0) * (point.y - 0);
+  double distlt = (point.x - 0) * (point.x - 0) + (point.y - mRect.rt.y) * (point.y - mRect.rt.y);
+  double distrt = (point.x - mRect.rt.x) * (point.x - mRect.rt.x) + (point.y - mRect.rt.y) * (point.y - mRect.rt.y);
+  double distrb = (point.x - mRect.rt.x) * (point.x - mRect.rt.x) + (point.y - 0) * (point.y - 0);
+
+  if(distlb < mDistance.lb) 
+  {
+    mDistance.lb = distlb;
+    mSitelb = point;
+  }
+  if(distlt < mDistance.lt) 
+  {
+    mDistance.lt = distlt;
+    mSitelt = point;
+  }
+  if(distrt < mDistance.rt) 
+  {
+    mDistance.rt = distrt;
+    mSitert = point;
+  }
+  if(distrb < mDistance.rb) 
+  {
+    mDistance.rb = distrb;
+    mSiterb = point;
+  }
+}
+
+void Voronoi::FinderAnglePoints::Clear()
+{
+  mDistance.rb = mRect.rt.x * mRect.rt.x + mRect.rt.y * mRect.rt.y;
+  mDistance.rt = mDistance.rb;
+  mDistance.lt = mDistance.rb;
+  mDistance.lb = mDistance.rb;
+}
+
 
 
 
