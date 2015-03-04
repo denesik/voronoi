@@ -8,7 +8,7 @@
 #include <iterator>
 
 float get_msec(){
-    return clock() / static_cast<float>(CLOCKS_PER_SEC / 10);
+    return clock() / static_cast<float>(CLOCKS_PER_SEC);
 }
 
 struct SiteComparator
@@ -25,11 +25,11 @@ void Generate(std::vector<glm::vec2> &points, const glm::uvec2 &size)
 {
   std::set<glm::vec2, SiteComparator> p;
 
-  printf("%7gms Start generate\n", get_msec());
+  printf("%7gs Start generate\n", get_msec());
 
   unsigned int seed = static_cast<unsigned int>(time(NULL));
   srand(seed);
-  printf("%7gms Seed: %i\n", get_msec(), seed);
+  printf("%7gs Seed: %i\n", get_msec(), seed);
 
   struct Generator
   {
@@ -59,11 +59,11 @@ int main()
     points.push_back(glm::vec2(80, 80));
     points.push_back(glm::vec2(20, 80));
     */
-    printf("%7gms End generate, Count: %i\n", get_msec(), static_cast<int>(points.size()));
+    printf("%7gs End generate, Count: %i\n", get_msec(), static_cast<int>(points.size()));
 
-    printf("%7gms Start Voronoi\n", get_msec());
+    printf("%7gs Start Voronoi\n", get_msec());
     Voronoi v(points, size);
-    printf("%7gms End Voronoi\n", get_msec());
+    printf("%7gs End Voronoi\n", get_msec());
 
 /*    v.Sort();
     auto diagram = v.GetDiagram();
@@ -108,7 +108,7 @@ int main()
 
     */
 
-  printf("%7gms End\n", get_msec());
+  printf("%7gs End\n", get_msec());
 
   //system("pause");
   return 0;
