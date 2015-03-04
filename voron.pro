@@ -6,14 +6,14 @@ CONFIG -= qt
 QMAKE_CXXFLAGS += -std=c++11
 
 SOURCES += main.cpp \
-    lodepng/lodepng.cpp \
     image.cpp \
     Voronoi.cpp \
-    geometry.cpp
+    geometry.cpp \
+    lodepng/lodepng.cpp
 
 HEADERS += \
-    lodepng/lodepng.h \
     image.h \
     Voronoi.h \
-    geometry.h
+    geometry.h \
+    lodepng/lodepng.h
 
