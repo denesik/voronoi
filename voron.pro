@@ -11,9 +11,6 @@ SOURCES += main.cpp \
     Voronoi.cpp \
     geometry.cpp
 
-include(deployment.pri)
-qtcAddDeployment()
-
 HEADERS += \
     lodepng/lodepng.h \
     image.h \
