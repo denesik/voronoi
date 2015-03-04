@@ -26,7 +26,28 @@ class Voronoi
 {
 public:
 
+  struct Edge
+  {
+    unsigned int site1;
+    unsigned int site2;
+    unsigned int vertex1;
+    unsigned int vertex2;
+    Edge(unsigned int s1, unsigned int s2, unsigned int v1, unsigned int v2)
+     : site1(s1), site2(s2), vertex1(v1), vertex2(v2)
+    {
+    }
+  };
+
+
   Voronoi(const std::vector<glm::vec2> &sites, const glm::vec2 &size);
+
+  ~Voronoi();
+
+  /// Вернуть список граней.
+  std::vector<Edge> &GetEdges();
+
+  /// Вернуть список вершин.
+  std::vector<glm::vec2> &GetVertex();
 
 
 private:
@@ -67,7 +88,7 @@ private:
     }
   };
 
-  struct Edge;
+  struct EdgeElement;
   /// Точка пересечения арок.
   /// Содержит индекс на себя в списке и
   /// указатель на грань, один из концов которой является данные брекпоинт.
@@ -117,13 +138,13 @@ private:
   /// Грань.
   /// Содержит ссылки на 2 места(исходных точки) и 2 точки соединяющие грань.
   /// Точки можут быть точками пересечения парабол либо точками пересечения граней.
-  struct Edge
+  struct EdgeElement
   {
     PointIndex el1;
     PointIndex el2;
     const SiteIndex site1;
     const SiteIndex site2;
-    Edge(PointIndex e1, PointIndex e2, const SiteIndex s1, const SiteIndex s2)
+    EdgeElement(PointIndex e1, PointIndex e2, const SiteIndex s1, const SiteIndex s2)
       : el1(e1), el2(e2), site1(s1), site2(s2)
     {}
   };
@@ -190,13 +211,17 @@ private:
   std::multiset<CircleEvent *, CircleEventComparator> mCircleEvents;
 
   /// Список граней.
-  std::vector<Edge *> mListEdge;
+  std::vector<EdgeElement *> mListEdgeElement;
 
   /// Список брекпоинтов и точек пересечения граней.
   std::vector<IElement *> mListPoints;
 
   /// Список вершин полигонов.
   std::vector<glm::vec2> mListVertex;
+
+  /// Список граней.
+  std::vector<Edge> mListEdge;
+
 
 private:
 
@@ -264,6 +289,9 @@ private:
   // Отладочные функции.
   bool IsList(BtreeElement *btreeElement);
   bool IsNode(BtreeElement *btreeElement);
+
+  bool IsListEdgeElementEmpty();
+  bool IsListPointsEmpty();
 
 #ifdef VORONOI_DEBUG_INFO
   // Отобразить состояние дерева.
