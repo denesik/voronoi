@@ -25,6 +25,8 @@ public:
 
   void Fill(unsigned int color);
 
+  std::vector<unsigned char> Raw();
+
 private:
 
   unsigned int mWidth;

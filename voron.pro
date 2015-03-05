@@ -17,5 +17,6 @@ HEADERS += \
     Voronoi.h \
     geometry.h \
     lodepng/lodepng.h \
-    Lloyd.h
+    Lloyd.h \
+    gif-h/gif.h
 

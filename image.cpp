@@ -140,6 +140,11 @@ void Image::Fill(unsigned int color)
     }
 }
 
+std::vector<unsigned char> Image::Raw()
+{
+    return mData;
+}
+
 
 
 
