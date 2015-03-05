@@ -612,19 +612,20 @@ void Voronoi::Process()
     //PrintListsBPA();
   }
 
-  printf("point count:  %6i, capacity :%i\n", mListPoints.size(), mListPoints.capacity());
-  printf("edge count:   %6i, capacity :%i\n", mListEdgeElement.size(), mListEdgeElement.capacity());
+  printf("point count:  %6i, capacity :%i\n",
+         static_cast<int>(mListPoints.size()), static_cast<int>(mListPoints.capacity()));
+  printf("edge count:   %6i, capacity :%i\n",
+         static_cast<int>(mListEdgeElement.size()), static_cast<int>(mListEdgeElement.capacity()));
 
   ReleaseProcess();
 
   PostProcess();
   ReleasePostProcess();
 
-  printf("vertex count: %6i, capacity :%i\n", mListVertex.size(), mListVertex.capacity());
-  printf("edge count:   %6i, capacity :%i\n", mListEdge.size(), mListEdge.capacity());
-
-
-  //CalcEdge();
+  printf("vertex count: %6i, capacity :%i\n",
+         static_cast<int>(mListVertex.size()), static_cast<int>(mListVertex.capacity()));
+  printf("edge count:   %6i, capacity :%i\n",
+         static_cast<int>(mListEdge.size()), static_cast<int>(mListEdge.capacity()));
 }
 
 Voronoi::BtreeElement *Voronoi::FindArc(float x)

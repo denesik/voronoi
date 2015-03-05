@@ -1,6 +1,7 @@
 #include "Voronoi.h"
 #include "image.h"
 #include "geometry.h"
+#include "Lloyd.h"
 
 #include <stdlib.h>
 #include <ctime>
@@ -65,15 +66,18 @@ std::vector<glm::vec2> Generate(const unsigned int count, const glm::uvec2 &size
 
 int main()
 {
-  glm::uvec2 size(10000, 10000);
+  glm::uvec2 size(1000, 1000);
 
   std::vector<glm::vec2> points;
-  points = Generate(1000000, size);
+  points = Generate(1000, size);
 
   printf("%7gs End generate, Count: %i\n", get_msec(), static_cast<int>(points.size()));
 
+  Lloyd l(points, size, 10);
+  const std::vector<glm::vec2> &lloydPoints = l.GetSites();
+
   printf("%7gs Start Voronoi\n", get_msec());
-  Voronoi v(points, size);
+  Voronoi v(lloydPoints, size);
   printf("%7gs End Voronoi\n", get_msec());
 
   const std::vector<glm::vec2> &vertex = v.GetVertex();
@@ -94,8 +98,8 @@ int main()
 
   for(auto it = edge.begin(); it != edge.end(); ++it)
   {
-    const glm::vec2 &p1 = points[(*it).site1];
-    const glm::vec2 &p2 = points[(*it).site2];
+    const glm::vec2 &p1 = lloydPoints[(*it).site1];
+    const glm::vec2 &p2 = lloydPoints[(*it).site2];
     image.DrawPoint(p1, 0xFF0000FF);
     image.DrawPoint(p2, 0xFF0000FF);
     //image.DrawLine(p1, p2, 0xFF0000FF);
@@ -107,7 +111,7 @@ int main()
 
   printf("%7gs End\n", get_msec());
 
-  system("pause");
+  //system("pause");
   return 0;
 }
 
