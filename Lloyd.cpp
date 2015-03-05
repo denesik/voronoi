@@ -59,9 +59,9 @@ Lloyd::Lloyd(const std::vector<glm::vec2> &sites, const glm::vec2 &size, unsigne
       glm::vec2 point;
       for(auto jt = poligon.begin(); jt != poligon.end(); ++jt)
       {
-        point += vertex[*jt];
+        point += vertex[*jt] * vertex[*jt];
       }
-      mListSite.push_back(point / static_cast<float>(poligon.size()));
+      mListSite.push_back(glm::sqrt(point / static_cast<float>(poligon.size())));
     }
 
     //рисуем гиф
@@ -77,7 +77,7 @@ Lloyd::Lloyd(const std::vector<glm::vec2> &sites, const glm::vec2 &size, unsigne
       image.DrawLine(p1, p2, 0x00FF00FF);
     }
 
-    GifWriteFrame(&gw, &image.Raw()[0], size.x + 1, size.y + 1, 50);
+    GifWriteFrame(&gw, &image.Raw()[0], size.x + 1, size.y + 1, 2);
   }
   GifEnd(&gw);
 }
