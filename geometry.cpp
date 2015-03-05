@@ -5,7 +5,7 @@
 #include <functional>
 #include <list>
 
-#define EPS 0.001
+#define EPS 0.0001
 
 double geometry::RotationPoint(const Point &a, const Point &b, const Point &c)
 {
@@ -55,11 +55,12 @@ bool geometry::LineContainsY(const Line &line)
   return line.b != 0.0;
 }
 
-std::list<geometry::Point> geometry::IntersectRectLine(const Rect &rect, const Line &line)
+std::vector<geometry::Point> geometry::IntersectRectLine(const Rect &rect, const Line &line)
 {
   // Примечание. Желательно в конце удалять одинаковые точки.
   // Возникает в случае, если линия проходит через угол.
-  std::list<Point> points;
+  std::vector<Point> points;
+  points.reserve(4);
 
   // Создаем прямые, проходащие через стороны ректа.
   Point lb(rect.lb);
@@ -90,7 +91,8 @@ std::list<geometry::Point> geometry::IntersectRectLine(const Rect &rect, const L
     }
   }
 
-  return points;
+  assert(points.size() == 0 || points.size() == 2);
+  return std::move(points);
 }
 
 geometry::Line geometry::Perpendicular(const Line &line, const Point &point)
@@ -115,9 +117,10 @@ geometry::Ray geometry::PerpRayLine(const Ray &ray, const Line &line)
   return Ray(ray.point, p);
 }
 
-std::list<geometry::Point> geometry::IntersectRectRay(const Rect &rect, const Ray &ray)
+std::vector<geometry::Point> geometry::IntersectRectRay(const Rect &rect, const Ray &ray)
 {
-  std::list<Point> points;
+  std::vector<Point> points;
+  points.reserve(5);
 
   Point lb(rect.lb);
   Point lt(rect.lb.x, rect.rt.y);
@@ -148,7 +151,26 @@ std::list<geometry::Point> geometry::IntersectRectRay(const Rect &rect, const Ra
     }
   }
 
-  return points;
+  assert(points.size() == 0 || points.size() == 2);
+  std::vector<Point> output;
+  if(points.size() < 2)
+  {
+    return std::move(output);
+  }
+
+  // У нас есть 2 точки, ближняя к началу луча - начало, дальняя - конец.
+  if(glm::distance(ray.point, points[0]) < glm::distance(ray.point, points[1]))
+  {
+    output.push_back(points[0]);
+    output.push_back(points[1]);
+  }
+  else
+  {
+    output.push_back(points[1]);
+    output.push_back(points[0]);
+  }
+
+  return std::move(output);
 }
 
 bool geometry::IsIntersectionRaySegment(const Segment &segment, const Ray &ray)
@@ -258,20 +280,15 @@ geometry::Point geometry::CreateCircle(const Point &a, const Point &b, const Poi
   return Point(-(zx) / (2 * z), (zy) / (2 * z));
 }
 
-std::list<geometry::Point> geometry::IntersectRectSegment(const Rect &rect, const Segment &segment)
+std::vector<geometry::Point> geometry::IntersectRectSegment(const Rect &rect, const Segment &segment)
 {
-  std::list<Point> points;
+  std::vector<Point> points;
+  points.reserve(6);
 
   points.push_back(segment.a);
   points.push_back(segment.b);
 
-  // Если весь отрезок внутри ректа, ничего делать не надо.
-  if(RectContainsPoint(rect, segment.a) && RectContainsPoint(rect, segment.b))
-  {
-    return points;
-  }
-
-  // Создаем прямые, проходащие через стороны ректа.
+  // Создаем прямые, проходящие через стороны ректа.
   Point lb(rect.lb);
   Point lt(rect.lb.x, rect.rt.y);
   Point rt(rect.rt);
@@ -303,7 +320,35 @@ std::list<geometry::Point> geometry::IntersectRectSegment(const Rect &rect, cons
     }
   }
 
-  return points;
+  assert(points.size() == 0 || points.size() == 2);
+  std::vector<Point> output;
+  if(points.size() < 2)
+  {
+    return std::move(output);
+  }
+
+  // Если точка находится внутри рабочей области, оставляем ее, 
+  // иначе ищем ближайшую к ней точку.
+  if(RectContainsPoint(rect, segment.a))
+  {
+    output.push_back(segment.a);
+  }
+  else
+  {
+    glm::distance(segment.a, points[0]) < glm::distance(segment.a, points[1]) ?
+      output.push_back(points[0]) : output.push_back(points[1]);
+  }
+  if(RectContainsPoint(rect, segment.b))
+  {
+    output.push_back(segment.b);
+  }
+  else
+  {
+    glm::distance(segment.b, points[0]) < glm::distance(segment.b, points[1]) ?
+      output.push_back(points[0]) : output.push_back(points[1]);
+  }
+
+  return std::move(output);
 }
 
 geometry::Rect geometry::CreateRect(const Segment &segment)
