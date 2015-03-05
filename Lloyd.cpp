@@ -1,63 +1,62 @@
 #include "Lloyd.h"
 
+#include <algorithm>
+
 Lloyd::Lloyd(const std::vector<glm::vec2> &sites, const glm::vec2 &size, unsigned int iteration)
  : mListSite(sites)
 {
-
   std::vector<std::vector<unsigned int> > listVertex;
 
   for(unsigned int i = 0; i < iteration; ++i)
   {
     // Строим диаграмму
     Voronoi voronoi(mListSite, size);
+    listVertex.clear();
+    listVertex.resize(mListSite.size());
+    mListSite.clear();
 
     // Строим список вершин для каждой точки.
-    listVertex.resize(mListSite.size());
     auto edges = voronoi.GetEdges();
 
     for(auto it = edges.begin(); it != edges.end(); ++it)
     {
       const Voronoi::Edge &edge = (*it);
 
-      unsigned int edgeSites[2] = {edge.site1, edge.site2};
-
-      for(unsigned int i = 0; i < 2; ++i)
+      if(std::find(listVertex[edge.site1].begin(), listVertex[edge.site1].end(), edge.vertex1) ==
+         listVertex[edge.site1].end())
       {
-        bool v1 = true;
-        bool v2 = true;
-        for(auto jt = listVertex[edgeSites[i]].begin(); jt != listVertex[edgeSites[i]].end(); ++jt)
-        {
-          if((*jt) == edge.vertex1)
-          {
-            v1 = false;
-          }
-          if((*jt) == edge.vertex2)
-          {
-            v2 = false;
-          }
-        }
-        if(v1)
-        {
-          listVertex[edgeSites[i]].push_back(edge.vertex1);
-        }
-        if(v2)
-        {
-          listVertex[edgeSites[i]].push_back(edge.vertex2);
-        }
+        listVertex[edge.site1].push_back(edge.vertex1);
+      }
+      if(std::find(listVertex[edge.site1].begin(), listVertex[edge.site1].end(), edge.vertex2) ==
+         listVertex[edge.site1].end())
+      {
+        listVertex[edge.site1].push_back(edge.vertex2);
+      }
+      if(std::find(listVertex[edge.site2].begin(), listVertex[edge.site2].end(), edge.vertex1) ==
+         listVertex[edge.site2].end())
+      {
+        listVertex[edge.site2].push_back(edge.vertex1);
+      }
+      if(std::find(listVertex[edge.site2].begin(), listVertex[edge.site2].end(), edge.vertex2) ==
+         listVertex[edge.site2].end())
+      {
+        listVertex[edge.site2].push_back(edge.vertex2);
       }
     }
 
+
     auto vertex = voronoi.GetVertex();
     // Вычисляем новые значения точек.
-    for(unsigned int i = 0; i < listVertex.size(); ++i)
+    for(unsigned int j = 0; j < listVertex.size(); ++j)
     {
-      assert(!listVertex[i].empty());
+      auto const &poligon = listVertex[j];
+      assert(!poligon.empty());
       glm::vec2 point;
-      for(auto jt = listVertex[i].begin(); jt != listVertex[i].end(); ++jt)
+      for(auto jt = poligon.begin(); jt != poligon.end(); ++jt)
       {
         point += vertex[*jt];
       }
-      mListSite[i] = point / static_cast<float>(listVertex[i].size());
+      mListSite.push_back(point / static_cast<float>(poligon.size()));
     }
   }
 }

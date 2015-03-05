@@ -66,14 +66,16 @@ std::vector<glm::vec2> Generate(const unsigned int count, const glm::uvec2 &size
 
 int main()
 {
-  glm::uvec2 size(1000, 1000);
+  glm::uvec2 size(10000, 10000);
 
   std::vector<glm::vec2> points;
-  points = Generate(1000, size);
+  points = Generate(10000, size);
+
+
 
   printf("%7gs End generate, Count: %i\n", get_msec(), static_cast<int>(points.size()));
 
-  Lloyd l(points, size, 10);
+  Lloyd l(points, size, 100);
   const std::vector<glm::vec2> &lloydPoints = l.GetSites();
 
   printf("%7gs Start Voronoi\n", get_msec());
