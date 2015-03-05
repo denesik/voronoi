@@ -1,10 +1,15 @@
 #include "Lloyd.h"
+#include "gif-h/gif.h"
+#include "image.h"
 
 Lloyd::Lloyd(const std::vector<glm::vec2> &sites, const glm::vec2 &size, unsigned int iteration)
  : mListSite(sites)
 {
 
   std::vector<std::vector<unsigned int> > listVertex;
+
+  GifWriter gw;
+  GifBegin(&gw, "voron.gif", size.x + 1, size.y + 1, 50);
 
   for(unsigned int i = 0; i < iteration; ++i)
   {
@@ -59,7 +64,23 @@ Lloyd::Lloyd(const std::vector<glm::vec2> &sites, const glm::vec2 &size, unsigne
       }
       mListSite[i] = point / static_cast<float>(listVertex[i].size());
     }
+
+    //рисуем гиф
+    Image image;
+    image.Resize(size.x + 1, size.y + 1);
+    image.Fill(0xFFFFFFFF);
+
+    const std::vector<Voronoi::Edge> &edge = voronoi.GetEdges();
+    for(auto it = edge.begin(); it != edge.end(); ++it)
+    {
+      const glm::vec2 &p1 = vertex[(*it).vertex1];
+      const glm::vec2 &p2 = vertex[(*it).vertex2];
+      image.DrawLine(p1, p2, 0x00FF00FF);
+    }
+
+    GifWriteFrame(&gw, &image.Raw()[0], size.x + 1, size.y + 1, 50);
   }
+  GifEnd(&gw);
 }
 
 Lloyd::~Lloyd()
