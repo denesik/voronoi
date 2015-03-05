@@ -124,12 +124,16 @@ namespace geometry
   Point CreateCircle(const Point &a, const Point &b, const Point &c);
 
   // Найти пересечение области линией.
-  std::list<Point> IntersectRectLine(const Rect &rect, const Line &line);
+  std::vector<Point> IntersectRectLine(const Rect &rect, const Line &line);
 
   // Найти пересечение области лучем.
-  std::list<Point> IntersectRectRay(const Rect &rect, const Ray &ray);
+  std::vector<Point> IntersectRectRay(const Rect &rect, const Ray &ray);
 
-  std::list<Point> IntersectRectSegment(const Rect &rect, const Segment &segment);
+  // Найти пересечение области отрезком.
+  std::vector<geometry::Point> IntersectRectSegment(const Rect &rect, const Segment &segment);
+
+  // Удалить продублированные точки
+  void DublicatePoints(std::vector<Point> &points);
 
   // Создать рект по заданной диагонали.
   Rect CreateRect(const Segment &segment);

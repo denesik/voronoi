@@ -13,9 +13,9 @@ Voronoi::Voronoi(const std::vector<glm::vec2> &sites, const glm::vec2 &size)
 {
   mHead = nullptr;
 
-  mListPoints.reserve(mListSite.size() * 7);
+  mListPoints.reserve(mListSite.size() * 6);
   mListEdgeElement.reserve(mListSite.size() * 3);
-  mListVertex.reserve(mListSite.size() * 3);
+  mListVertex.reserve(mListSite.size() * 2);
   mListEdge.reserve(mListSite.size() * 3);
 
   // Создаем события точек.
@@ -45,7 +45,7 @@ Voronoi::Voronoi(const std::vector<glm::vec2> &sites, const glm::vec2 &size)
 
 Voronoi::~Voronoi()
 {
-  assert(mSiteEventsIndex == mSiteEvents.size());
+  assert(mSiteEvents.empty());
   assert(mCircleEvents.empty());
   RemoveTree();
 }
@@ -108,18 +108,6 @@ void Voronoi::PrintListsBPA()
 
 }
 
-// void Voronoi::PrintEdgeList()
-// {
-//
-//   for(auto it = mListEdge.begin(); it != mListEdge.end(); ++it)
-//   {
-//     printf("[e: {%s:%s}]\n",
-//       (*it)->el1->type == IElement::BREAK_POINT ? "b" : "p",
-//       (*it)->el2->type == IElement::BREAK_POINT ? "b" : "p"
-//       );
-//   }
-//
-// }
 #endif
 
 
@@ -624,13 +612,20 @@ void Voronoi::Process()
     //PrintListsBPA();
   }
 
-  printf("point count: %i\n", mListPoints.size());
-  printf("edge count: %i\n", mListEdgeElement.size());
-  printf("vertex count: %i\n", mListVertex.size());
+  printf("point count:  %6i, capacity :%i\n",
+         static_cast<int>(mListPoints.size()), static_cast<int>(mListPoints.capacity()));
+  printf("edge count:   %6i, capacity :%i\n",
+         static_cast<int>(mListEdgeElement.size()), static_cast<int>(mListEdgeElement.capacity()));
 
   ReleaseProcess();
+
+  PostProcess();
   ReleasePostProcess();
-  //CalcEdge();
+
+  printf("vertex count: %6i, capacity :%i\n",
+         static_cast<int>(mListVertex.size()), static_cast<int>(mListVertex.capacity()));
+  printf("edge count:   %6i, capacity :%i\n",
+         static_cast<int>(mListEdge.size()), static_cast<int>(mListEdge.capacity()));
 }
 
 Voronoi::BtreeElement *Voronoi::FindArc(float x)
@@ -718,39 +713,8 @@ void Voronoi::ReleaseProcess()
 
 void Voronoi::ReleasePostProcess()
 {
-  //assert(IsListEdgeElementEmpty());
-  //assert(IsListPointsEmpty());
-
-  for(PointIndex i = 0; i < mListPoints.size(); ++i)
-  {
-    if(mListPoints[i])
-    {
-      //assert(mListPoints[i]->type == IElement::BREAK_POINT);
-      //DeleteBPElement(i);
-
-      if(mListPoints[i]->type == IElement::BREAK_POINT)
-      {
-        DeleteBPElement(i);
-      }
-      else
-      if(mListPoints[i]->type == IElement::END_POINT)
-      {
-        unsigned int refCount = static_cast<EPElement *>(mListPoints[i])->refCount;
-        for(unsigned int j = 0; j < refCount; ++j)
-        {
-          DeleteEPElement(i);
-        }
-      }
-    }
-  }
-
-  for(EdgeIndex i = 0; i < static_cast<int>(mListEdgeElement.size()); ++i)
-  {
-    if(mListEdgeElement[i])
-    {
-      DeleteEdge(i);
-    }
-  }
+  assert(IsListEdgeElementEmpty());
+  assert(IsListPointsEmpty());
   {
     std::vector<IElement *> tmp;
     std::swap(mListPoints, tmp);
@@ -814,13 +778,18 @@ Voronoi::PointIndex Voronoi::NewEPElement(const SiteIndex s1, const SiteIndex s2
   VertexIndex pointIndex = -1;
   if(RectContainsPoint(mRect, point))
   {
-    mListVertex.push_back(point);
-    pointIndex = mListVertex.size() - 1;
+    pointIndex = NewVertex(point);
   }
 
   EPElement *element = new EPElement(pointIndex, s1, s2, s3);
   mListPoints.push_back(element);
   return mListPoints.size() - 1;
+}
+
+Voronoi::VertexIndex Voronoi::NewVertex(const glm::vec2 &point)
+{
+  mListVertex.push_back(point);
+  return mListVertex.size() - 1;
 }
 
 void Voronoi::DeleteEPElement(PointIndex el)
@@ -865,9 +834,9 @@ void Voronoi::UpdateEdge(PointIndex el1, PointIndex el2, PointIndex ep)
     EPElement *ep2 = static_cast<EPElement *>(mListPoints[mListEdgeElement[e1]->el2]);
     if(ep1->pos >= 0 && ep2->pos >= 0)
     {
-      mListEdge.emplace_back(mListEdgeElement[e1]->site1, mListEdgeElement[e1]->site2,
-                             static_cast<EPElement *>(mListPoints[mListEdgeElement[e1]->el1])->pos,
-                             static_cast<EPElement *>(mListPoints[mListEdgeElement[e1]->el2])->pos);
+      mListEdge.push_back(Edge(mListEdgeElement[e1]->site1, mListEdgeElement[e1]->site2,
+                                  static_cast<EPElement *>(mListPoints[mListEdgeElement[e1]->el1])->pos,
+                                  static_cast<EPElement *>(mListPoints[mListEdgeElement[e1]->el2])->pos));
       DeleteEPElement(mListEdgeElement[e1]->el1);
       DeleteEPElement(mListEdgeElement[e1]->el2);
       DeleteEdge(e1);
@@ -880,9 +849,9 @@ void Voronoi::UpdateEdge(PointIndex el1, PointIndex el2, PointIndex ep)
     EPElement *ep2 = static_cast<EPElement *>(mListPoints[mListEdgeElement[e2]->el2]);
     if(ep1->pos >= 0 && ep2->pos >= 0)
     {
-      mListEdge.emplace_back(mListEdgeElement[e2]->site1, mListEdgeElement[e2]->site2,
-                             static_cast<EPElement *>(mListPoints[mListEdgeElement[e2]->el1])->pos,
-                             static_cast<EPElement *>(mListPoints[mListEdgeElement[e2]->el2])->pos);
+      mListEdge.push_back(Edge(mListEdgeElement[e2]->site1, mListEdgeElement[e2]->site2,
+                               static_cast<EPElement *>(mListPoints[mListEdgeElement[e2]->el1])->pos,
+                               static_cast<EPElement *>(mListPoints[mListEdgeElement[e2]->el2])->pos));
       DeleteEPElement(mListEdgeElement[e2]->el1);
       DeleteEPElement(mListEdgeElement[e2]->el2);
       DeleteEdge(e2);
@@ -909,4 +878,119 @@ std::vector<glm::vec2> &Voronoi::GetVertex()
   return mListVertex;
 }
 
+void Voronoi::PostProcess()
+{
+  for(EdgeIndex i = 0; i < static_cast<int>(mListEdgeElement.size()); ++i)
+  {
+    if(mListEdgeElement[i])
+    {
+      EdgeElement *edge = mListEdgeElement[i];
+      assert(edge->site1 < mListSite.size() && edge->site2 < mListSite.size());
+      assert(edge->el1 < mListPoints.size() && edge->el2 < mListPoints.size());
+      assert(mListPoints[edge->el1]->type == IElement::BREAK_POINT || 
+             mListPoints[edge->el1]->type == IElement::END_POINT);
+      assert(mListPoints[edge->el2]->type == IElement::BREAK_POINT || 
+             mListPoints[edge->el2]->type == IElement::END_POINT);
 
+      if(mListPoints[edge->el1]->type == IElement::END_POINT &&
+         mListPoints[edge->el2]->type == IElement::END_POINT)
+      {
+        // Обрабатываем отрезок.
+        // Отрезок не полностью лежит в рабочей области, поэтому его надо обрезать.
+
+        EPElement *ep1 = static_cast<EPElement *>(mListPoints[edge->el1]);
+        EPElement *ep2 = static_cast<EPElement *>(mListPoints[edge->el2]);
+        assert(ep1 && ep2);
+
+        Point p1 = ep1->pos >= 0 ? Point(mListVertex[ep1->pos]) : 
+          CreateCircle(mListSite[ep1->site1], mListSite[ep1->site2], mListSite[ep1->site3]);
+
+        Point p2 = ep2->pos >= 0 ? Point(mListVertex[ep2->pos]) : 
+          CreateCircle(mListSite[ep2->site1], mListSite[ep2->site2], mListSite[ep2->site3]);
+
+        auto points = IntersectRectSegment(mRect, Segment(p1, p2));
+
+        if(points.size() == 2)
+        {
+          VertexIndex v1 = ep1->pos >= 0 ? ep1->pos : NewVertex(points[0]);
+          VertexIndex v2 = ep2->pos >= 0 ? ep2->pos : NewVertex(points[1]);
+
+          mListEdge.push_back(Edge(edge->site1, edge->site2, v1, v2));
+        }
+
+        DeleteEPElement(edge->el1);
+        DeleteEPElement(edge->el2);
+        DeleteEdge(i);
+        
+        continue;
+      }
+      if(mListPoints[edge->el1]->type == IElement::BREAK_POINT &&
+         mListPoints[edge->el2]->type == IElement::BREAK_POINT)
+      {
+        // Обрабатываем прямую
+        auto points = IntersectRectLine(
+          mRect, Perpendicular(Line(mListSite[edge->site1], mListSite[edge->site2]),
+                               Center(mListSite[edge->site1], mListSite[edge->site2])));
+       
+        if(points.size() == 2)
+        {
+          VertexIndex v1 = NewVertex(points[0]);
+          VertexIndex v2 = NewVertex(points[1]);
+
+          mListEdge.push_back(Edge(edge->site1, edge->site2, v1, v2));
+        }
+
+        DeleteBPElement(edge->el1);
+        DeleteBPElement(edge->el2);
+        DeleteEdge(i);
+
+        continue;
+      }
+
+      EPElement *ep = mListPoints[edge->el1]->type == IElement::END_POINT ? 
+        static_cast<EPElement *>(mListPoints[edge->el1]) :
+        static_cast<EPElement *>(mListPoints[edge->el2]);
+
+      // Ищем точку C в треугольнике.
+      SiteIndex dirPoint = ep->site1;
+      if(dirPoint == edge->site1 || dirPoint == edge->site2)
+      {
+        dirPoint = ep->site2;
+        if(dirPoint == edge->site1 || dirPoint == edge->site2)
+        {
+          dirPoint = ep->site3;
+          assert(dirPoint != edge->site1 && dirPoint != edge->site2);
+        }
+      }
+    
+      // Ищем срединный перпендикуляр к AB.
+      // Эта линия должна проходить через E (центр окружности).
+      Point center = Center(mListSite[edge->site1], mListSite[edge->site2]);
+      Line rayLine = Perpendicular(Line(mListSite[edge->site1], mListSite[edge->site2]), center);
+
+      // Ищем еще один перпендикуляр к данной линии в точку C.
+      Line perpRay = Perpendicular(rayLine, mListSite[dirPoint]);
+
+      Point point = ep->pos >= 0 ? Point(mListVertex[ep->pos]) : 
+        CreateCircle(mListSite[ep->site1], mListSite[ep->site2], mListSite[ep->site3]);
+
+      Point dir = point - IntersectLines(rayLine, perpRay);
+
+      auto points = IntersectRectRay(mRect, Ray(point, center + dir));
+
+      if(points.size() == 2)
+      {
+        VertexIndex v1 = ep->pos >= 0 ? ep->pos : NewVertex(points[0]);
+        VertexIndex v2 = NewVertex(points[1]);
+
+        mListEdge.push_back(Edge(edge->site1, edge->site2, v1, v2));
+      }
+
+      mListPoints[edge->el1]->type == IElement::END_POINT ? 
+        DeleteEPElement(edge->el1) : DeleteBPElement(edge->el1);
+      mListPoints[edge->el2]->type == IElement::END_POINT ? 
+        DeleteEPElement(edge->el2) : DeleteBPElement(edge->el2);
+      DeleteEdge(i);
+    }
+  }
+}

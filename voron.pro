@@ -9,11 +9,13 @@ SOURCES += main.cpp \
     image.cpp \
     Voronoi.cpp \
     geometry.cpp \
-    lodepng/lodepng.cpp
+    lodepng/lodepng.cpp \
+    Lloyd.cpp
 
 HEADERS += \
     image.h \
     Voronoi.h \
     geometry.h \
-    lodepng/lodepng.h
+    lodepng/lodepng.h \
+    Lloyd.h
 
