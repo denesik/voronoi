@@ -45,7 +45,7 @@ Voronoi::Voronoi(const std::vector<glm::vec2> &sites, const glm::vec2 &size)
 
 Voronoi::~Voronoi()
 {
-  assert(mSiteEventsIndex == mSiteEvents.size());
+  assert(mSiteEvents.empty());
   assert(mCircleEvents.empty());
   RemoveTree();
 }
@@ -865,9 +865,9 @@ void Voronoi::UpdateEdge(PointIndex el1, PointIndex el2, PointIndex ep)
     EPElement *ep2 = static_cast<EPElement *>(mListPoints[mListEdgeElement[e1]->el2]);
     if(ep1->pos >= 0 && ep2->pos >= 0)
     {
-      mListEdge.emplace_back(mListEdgeElement[e1]->site1, mListEdgeElement[e1]->site2,
-                             static_cast<EPElement *>(mListPoints[mListEdgeElement[e1]->el1])->pos,
-                             static_cast<EPElement *>(mListPoints[mListEdgeElement[e1]->el2])->pos);
+      mListEdge.push_back(Edge(mListEdgeElement[e1]->site1, mListEdgeElement[e1]->site2,
+                                  static_cast<EPElement *>(mListPoints[mListEdgeElement[e1]->el1])->pos,
+                                  static_cast<EPElement *>(mListPoints[mListEdgeElement[e1]->el2])->pos));
       DeleteEPElement(mListEdgeElement[e1]->el1);
       DeleteEPElement(mListEdgeElement[e1]->el2);
       DeleteEdge(e1);
@@ -880,9 +880,9 @@ void Voronoi::UpdateEdge(PointIndex el1, PointIndex el2, PointIndex ep)
     EPElement *ep2 = static_cast<EPElement *>(mListPoints[mListEdgeElement[e2]->el2]);
     if(ep1->pos >= 0 && ep2->pos >= 0)
     {
-      mListEdge.emplace_back(mListEdgeElement[e2]->site1, mListEdgeElement[e2]->site2,
-                             static_cast<EPElement *>(mListPoints[mListEdgeElement[e2]->el1])->pos,
-                             static_cast<EPElement *>(mListPoints[mListEdgeElement[e2]->el2])->pos);
+      mListEdge.push_back(Edge(mListEdgeElement[e2]->site1, mListEdgeElement[e2]->site2,
+                               static_cast<EPElement *>(mListPoints[mListEdgeElement[e2]->el1])->pos,
+                               static_cast<EPElement *>(mListPoints[mListEdgeElement[e2]->el2])->pos));
       DeleteEPElement(mListEdgeElement[e2]->el1);
       DeleteEPElement(mListEdgeElement[e2]->el2);
       DeleteEdge(e2);
