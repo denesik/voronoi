@@ -132,6 +132,9 @@ namespace geometry
   // Найти пересечение области отрезком.
   std::vector<geometry::Point> IntersectRectSegment(const Rect &rect, const Segment &segment);
 
+  // Удалить продублированные точки
+  void DublicatePoints(std::vector<Point> &points);
+
   // Создать рект по заданной диагонали.
   Rect CreateRect(const Segment &segment);
 }

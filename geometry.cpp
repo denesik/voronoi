@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <list>
+#include <algorithm>
 
 #define EPS 0.0001
 
@@ -91,7 +92,14 @@ std::vector<geometry::Point> geometry::IntersectRectLine(const Rect &rect, const
     }
   }
 
-  assert(points.size() == 0 || points.size() == 2);
+  DublicatePoints(points);
+  assert(points.size() <= 2);
+
+  if(points.size() < 2)
+  {
+    return std::move(std::vector<Point>());
+  }
+
   return std::move(points);
 }
 
@@ -151,7 +159,9 @@ std::vector<geometry::Point> geometry::IntersectRectRay(const Rect &rect, const 
     }
   }
 
-  assert(points.size() == 0 || points.size() == 2);
+  DublicatePoints(points);
+
+  assert(points.size() <= 2);
   std::vector<Point> output;
   if(points.size() < 2)
   {
@@ -320,7 +330,9 @@ std::vector<geometry::Point> geometry::IntersectRectSegment(const Rect &rect, co
     }
   }
 
-  assert(points.size() == 0 || points.size() == 2);
+  DublicatePoints(points);
+
+  assert(points.size() <= 2);
   std::vector<Point> output;
   if(points.size() < 2)
   {
@@ -359,6 +371,25 @@ geometry::Rect geometry::CreateRect(const Segment &segment)
   double topy = segment.a.y >= segment.b.y ? segment.a.y : segment.b.y;
 
   return Rect(Point(leftx, bottomy), Point(rightx, topy));
+}
+
+void geometry::DublicatePoints(std::vector<Point> &points)
+{
+  std::sort(points.begin(), points.end(), 
+    [](const Point &p1, const Point &p2) -> bool
+  {
+    if(p1.y == p2.y)
+      return p1.x > p2.x;
+    return p1.y > p2.y;
+  });
+
+  auto it = std::unique(points.begin(), points.end(), 
+    [](const Point &p1, const Point &p2)
+  {
+    return glm::abs(p1.x - p2.x) < EPS && glm::abs(p1.y - p2.y) < EPS;
+  });   
+
+  points.resize(std::distance(points.begin(), it));
 }
 
 

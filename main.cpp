@@ -107,7 +107,7 @@ int main()
 
   printf("%7gs End\n", get_msec());
 
-  //system("pause");
+  system("pause");
   return 0;
 }
 
