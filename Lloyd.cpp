@@ -1,6 +1,7 @@
 #include "Lloyd.h"
 
 #include <algorithm>
+#include "Voronoi.h"
 
 std::vector<glm::vec2> Lloyd(const std::vector<glm::vec2> &sites, const glm::vec2 &size)
 {
@@ -15,7 +16,7 @@ std::vector<glm::vec2> Lloyd(const std::vector<glm::vec2> &sites, const glm::vec
   for(unsigned int i = 0; i < sites.size(); ++i)
   {
     // Резервируем память под 9 вершин (среднее значение с запасом),
-    // однако каждая вершина содержиттся в 2-х гранях, которые относятся к данному
+    // однако каждая вершина содержится в 2-х гранях, которые относятся к данному
     // полигону, поэтому резервируем в 2 раза больше памяти.
     listVertex.emplace_back();
     listVertex.back().reserve(9 * 2);

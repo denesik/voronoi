@@ -128,11 +128,19 @@ int main()
     image.Resize(size.x + 1, size.y + 1);
     image.Fill(0xFFFFFFFF);
 
+    /*
     for(auto it = edge.begin(); it != edge.end(); ++it)
     {
       const glm::vec2 &p1 = vertex[(*it).vertex1];
       const glm::vec2 &p2 = vertex[(*it).vertex2];
       image.DrawLine(p1, p2, 0x00FF00FF);
+    }
+    */
+    for(auto it = edge.begin(); it != edge.end(); ++it)
+    {
+      const glm::vec2 &p1 = points[(*it).site1];
+      const glm::vec2 &p2 = points[(*it).site2];
+      image.DrawLine(p1, p2, 0xFF0000FF);
     }
     GifWriteFrame(&gw, &image.Raw()[0], size.x + 1, size.y + 1, 2);
   }
