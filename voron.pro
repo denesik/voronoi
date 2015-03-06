@@ -9,8 +9,7 @@ SOURCES += main.cpp \
     image.cpp \
     Voronoi.cpp \
     geometry.cpp \
-    lodepng/lodepng.cpp \
-    Lloyd.cpp
+    lodepng/lodepng.cpp
 
 HEADERS += \
     image.h \
