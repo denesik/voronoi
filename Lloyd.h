@@ -37,15 +37,15 @@ std::vector<glm::vec2> Lloyd(const std::vector<glm::vec2> &sites, const glm::vec
   voronoi();
 
   // Подготавливаем массив для заполнения полигонов.
-  std::vector<std::vector<unsigned int> > listVertex;
-  listVertex.reserve(sites.size());
+  std::vector<std::vector<unsigned int> > listPoligons;
+  listPoligons.reserve(sites.size());
   for(unsigned int i = 0; i < sites.size(); ++i)
   {
     // Резервируем память под 9 вершин (среднее значение с запасом),
     // однако каждая вершина содержится в 2-х гранях, которые относятся к данному
     // полигону, поэтому резервируем в 2 раза больше памяти.
-    listVertex.emplace_back();
-    listVertex.back().reserve(9 * 2);
+    listPoligons.emplace_back();
+    listPoligons.back().reserve(9 * 2);
   }
 
   // Проходим по всем граням и добавляем вершины соответствующим точкам.
@@ -55,19 +55,20 @@ std::vector<glm::vec2> Lloyd(const std::vector<glm::vec2> &sites, const glm::vec
   {
     const Voronoi::Edge &edge = (*it);
 
-    listVertex[edge.site1].push_back(edge.vertex1);
-    listVertex[edge.site1].push_back(edge.vertex2);
-    listVertex[edge.site2].push_back(edge.vertex1);
-    listVertex[edge.site2].push_back(edge.vertex2);
+    listPoligons[edge.site1].push_back(edge.vertex1);
+    listPoligons[edge.site1].push_back(edge.vertex2);
+    listPoligons[edge.site2].push_back(edge.vertex1);
+    listPoligons[edge.site2].push_back(edge.vertex2);
   }
 
   // Вычисляем новые значения точек.
   auto const &vertex = voronoi.GetVertex();
   std::vector<glm::vec2> listSites(sites);
   listSites.reserve(sites.size());
-  for(unsigned int j = 0; j < listVertex.size(); ++j)
+  for(unsigned int j = 0; j < listPoligons.size(); ++j)
   {
-    auto const &poligon = listVertex[j];
+    auto const &poligon = listPoligons[j];
+    assert(!poligon.empty());
     if(poligon.empty())
     {
       continue;
