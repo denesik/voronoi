@@ -1,5 +1,6 @@
 #include "Voronoi.h"
 #include "image.h"
+#include "gif-h/gif.h"
 #include "geometry.h"
 #include "Lloyd.h"
 
@@ -103,18 +104,40 @@ std::vector<glm::vec2> LloidGenerate(const unsigned int count, const glm::uvec2 
 
 int main()
 {
-  glm::uvec2 size(1000, 1000);
+  glm::uvec2 size(400, 400);
 
   std::vector<glm::vec2> points;
   //points = Generate(100000, size);
-  points = LloidGenerate(1000, glm::uvec2(500, 500), glm::uvec2(10, 10));
+  points = LloidGenerate(200, glm::uvec2(200, 200), glm::uvec2(5, 5));
 
   printf("%7gs End generate, Count: %i\n", get_msec(), static_cast<int>(points.size()));
 
-  for(unsigned int i = 0; i < 1000; ++i)
+  GifWriter gw;
+  GifBegin(&gw, "voron.gif", size.x + 1, size.y + 1, 50);
+  for(unsigned int i = 0; i < 800; ++i)
   {
     points = Lloyd(points, size);
+
+    // Рисуем анимацию.
+    Voronoi diagram(points, size);
+    diagram();
+    const std::vector<glm::vec2> &vertex = diagram.GetVertex();
+    const std::vector<Voronoi::Edge> &edge = diagram.GetEdges();
+
+    Image image;
+    image.Resize(size.x + 1, size.y + 1);
+    image.Fill(0xFFFFFFFF);
+
+    for(auto it = edge.begin(); it != edge.end(); ++it)
+    {
+      const glm::vec2 &p1 = vertex[(*it).vertex1];
+      const glm::vec2 &p2 = vertex[(*it).vertex2];
+      image.DrawLine(p1, p2, 0x00FF00FF);
+    }
+    GifWriteFrame(&gw, &image.Raw()[0], size.x + 1, size.y + 1, 2);
   }
+  GifEnd(&gw);
+
 
   printf("%7gs Start Voronoi\n", get_msec());
   Voronoi v(points, size);

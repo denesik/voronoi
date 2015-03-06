@@ -1,6 +1,4 @@
 #include "Lloyd.h"
-#include "gif-h/gif.h"
-#include "image.h"
 
 #include <algorithm>
 
@@ -55,7 +53,7 @@ std::vector<glm::vec2> Lloyd(const std::vector<glm::vec2> &sites, const glm::vec
     }
     point /= static_cast<float>(poligon.size());
     point += glm::vec2(rand() % 7 - 3, rand() % 7 - 3);
-    //point = (point * 3.0f + sites[j]) / 4.0f;
+    //point = (point * 3.0f + sites[j] * 1.0f) / 4.0f;
     listSites[j] = point;
   }
 
