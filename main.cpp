@@ -113,19 +113,19 @@ std::vector<glm::vec2> LloidGenerate(const unsigned int count, const glm::uvec2 
 
 int main()
 {
-  glm::uvec2 size(10000, 10000);
+  glm::uvec2 size(1000, 1000);
 
   std::vector<glm::vec2> points;
-  points = Generate(5000000, size);
-  //points = LloidGenerate(1000, glm::uvec2(490, 410), glm::uvec2(20, 20));
+  //points = Generate(5000000, size);
+  points = LloidGenerate(500, glm::uvec2(495, 405), glm::uvec2(10, 10));
 
   printf("%7gs End generate, Count: %i\n", get_msec(), static_cast<int>(points.size()));
 
-  //Lloyd l(points, size, 1000);
-  //const std::vector<glm::vec2> &lloydPoints = l.GetSites();
+  Lloyd l(points, size, 1000);
+  const std::vector<glm::vec2> &lloydPoints = l.GetSites();
 
   printf("%7gs Start Voronoi\n", get_msec());
-  Voronoi v(points, size);
+  Voronoi v(lloydPoints, size);
   printf("%7gs End Voronoi\n", get_msec());
 
   const std::vector<glm::vec2> &vertex = v.GetVertex();
@@ -146,8 +146,8 @@ int main()
 
   for(auto it = edge.begin(); it != edge.end(); ++it)
   {
-    const glm::vec2 &p1 = points[(*it).site1];
-    const glm::vec2 &p2 = points[(*it).site2];
+    const glm::vec2 &p1 = lloydPoints[(*it).site1];
+    const glm::vec2 &p2 = lloydPoints[(*it).site2];
     image.DrawPoint(p1, 0xFF0000FF);
     image.DrawPoint(p2, 0xFF0000FF);
     //image.DrawLine(p1, p2, 0xFF0000FF);

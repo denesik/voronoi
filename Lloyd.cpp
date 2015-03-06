@@ -18,7 +18,6 @@ Lloyd::Lloyd(const std::vector<glm::vec2> &sites, const glm::vec2 &size, unsigne
     Voronoi voronoi(mListSite, size);
     listVertex.clear();
     listVertex.resize(mListSite.size());
-    mListSite.clear();
 
     // Строим список вершин для каждой точки.
     auto edges = voronoi.GetEdges();
@@ -59,9 +58,11 @@ Lloyd::Lloyd(const std::vector<glm::vec2> &sites, const glm::vec2 &size, unsigne
       glm::vec2 point;
       for(auto jt = poligon.begin(); jt != poligon.end(); ++jt)
       {
-        point += vertex[*jt] * vertex[*jt];
+        point += vertex[*jt];
       }
-      mListSite.push_back(glm::sqrt(point / static_cast<float>(poligon.size())));
+      point /= static_cast<float>(poligon.size());
+      point = point * 3.0f + mListSite[j];
+      mListSite[j] = point / 4.0f;
     }
 
     //рисуем гиф
@@ -77,7 +78,7 @@ Lloyd::Lloyd(const std::vector<glm::vec2> &sites, const glm::vec2 &size, unsigne
       image.DrawLine(p1, p2, 0x00FF00FF);
     }
 
-    GifWriteFrame(&gw, &image.Raw()[0], size.x + 1, size.y + 1, 2);
+    GifWriteFrame(&gw, &image.Raw()[0], size.x + 1, size.y + 1, 1);
   }
   GifEnd(&gw);
 }
