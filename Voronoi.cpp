@@ -1,6 +1,8 @@
 #include "Voronoi.h"
 
 
+using namespace geometry;
+
 #ifdef VORONOI_DEBUG_INFO
 #include <stdio.h>
 #endif
@@ -8,11 +10,60 @@
 
 #define EPS 0.001
 
+Voronoi::Voronoi()
+  : mRect(Point(), Point())
+{
+  mHead = nullptr;
+  mSiteEventsIndex = 0;
+}
+
 Voronoi::Voronoi(const std::vector<glm::vec2> &sites, const glm::vec2 &size)
   : mListSite(sites), mRect(Point(), size)
 {
   mHead = nullptr;
   mSiteEventsIndex = 0;
+}
+
+Voronoi::Voronoi(const Voronoi &voronoi)
+  : mListSite(voronoi.mListSite), mRect(voronoi.mRect),
+    mListVertex(voronoi.mListVertex), mListEdge(voronoi.mListEdge)
+{
+  mHead = nullptr;
+  mSiteEventsIndex = 0;
+}
+
+Voronoi &Voronoi::operator=(const Voronoi &voronoi)
+{
+  if (this != &voronoi)
+  {
+    assert(mHead == nullptr);
+    mRect = voronoi.mRect;
+    mListSite = voronoi.mListSite;
+    mListVertex = voronoi.mListVertex;
+    mListEdge = voronoi.mListEdge;
+  }
+  return *this;
+}
+
+Voronoi::Voronoi(Voronoi &&voronoi)
+  : mListSite(std::move(voronoi.mListSite)), mRect(voronoi.mRect),
+    mListVertex(std::move(voronoi.mListVertex)), mListEdge(std::move(voronoi.mListEdge))
+{
+  mHead = nullptr;
+  mSiteEventsIndex = 0;
+}
+
+Voronoi &Voronoi::operator=(Voronoi &&voronoi)
+{
+  if (this != &voronoi)
+  {
+    assert(mHead == nullptr);
+    mRect = voronoi.mRect;
+    mListSite = std::move(voronoi.mListSite);
+    mListVertex = std::move(voronoi.mListVertex);
+    mListEdge = std::move(voronoi.mListEdge);
+  }
+  return *this;
 }
 
 Voronoi::~Voronoi()
@@ -870,12 +921,12 @@ void Voronoi::DeleteEdge(EdgeIndex el)
   mListEdgeElement[el] = nullptr;
 }
 
-std::vector<Voronoi::Edge> &Voronoi::GetEdges()
+const std::vector<Voronoi::Edge> &Voronoi::GetEdges() const
 {
   return mListEdge;
 }
 
-std::vector<glm::vec2> &Voronoi::GetVertex()
+const std::vector<glm::vec2> &Voronoi::GetVertex() const
 {
   return mListVertex;
 }
@@ -997,7 +1048,7 @@ void Voronoi::PostProcess()
   }
 }
 
-std::vector<glm::vec2> &Voronoi::GetSites()
+const std::vector<glm::vec2> &Voronoi::GetSites() const
 {
   return mListSite;
 }

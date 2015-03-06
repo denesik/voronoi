@@ -6,8 +6,6 @@
 #include <set>
 #include <vector>
 
-using namespace geometry;
-
 //#define VORONOI_DEBUG_INFO
 
 #ifdef VORONOI_DEBUG_INFO
@@ -41,10 +39,27 @@ public:
     }
   };
 
+  /// Конструктор по умолчанию.
+  Voronoi();
+
   /// Конструктор.
   /// @param sites Список точек. Точки не должен содержать одинаковых точек.
   /// @param size Размер рабочей области.
   Voronoi(const std::vector<glm::vec2> &sites, const glm::vec2 &size);
+
+  /// Конструктор копирования.
+  /// Копируются размер рабочей области, списки точек, вершин и граней.
+  Voronoi(const Voronoi &voronoi);
+
+  /// Оператор копирования.
+  Voronoi &operator=(const Voronoi &voronoi);
+
+  /// Конструктор перемещения.
+  /// Перемещается размер рабочей области, списки точек, вершин и граней.
+  Voronoi(Voronoi &&voronoi);
+
+  /// Оператор перемещения.
+  Voronoi &operator=(Voronoi &&voronoi);
 
   ~Voronoi();
 
@@ -57,13 +72,13 @@ public:
   void Clear();
 
   /// Вернуть список точек.
-  std::vector<glm::vec2> &GetSites();
+  const std::vector<glm::vec2> &GetSites() const;
 
   /// Вернуть список граней.
-  std::vector<Edge> &GetEdges();
+  const std::vector<Edge> &GetEdges() const;
 
   /// Вернуть список вершин.
-  std::vector<glm::vec2> &GetVertex();
+  const std::vector<glm::vec2> &GetVertex() const;
 
 private:
   typedef unsigned int SiteIndex;
@@ -197,7 +212,7 @@ private:
   std::vector<glm::vec2> mListSite;
 
   /// Ограничивающая область диаграммы.
-  const Rect mRect;
+  geometry::Rect mRect;
 
   // Уровень заметающей прямой.
   // Прямая опускается сверху вниз.

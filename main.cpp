@@ -128,7 +128,7 @@ int main()
 
   printf("%7gs End generate, Count: %i\n", get_msec(), static_cast<int>(points.size()));
 
-  Lloyd l(points, size, 1000);
+  Lloyd l(points, size, 500);
   const std::vector<glm::vec2> &lloydPoints = l.GetSites();
 
   printf("%7gs Start Voronoi\n", get_msec());
