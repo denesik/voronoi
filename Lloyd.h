@@ -6,8 +6,12 @@
 #include <algorithm>
 #include "Voronoi.h"
 
+/// Функтор по умолчанию.
 struct LloydPredicateDefault
 {
+  /// @param site Исходная точка.
+  /// @param poligon Список индексов вершин данного полигона.
+  /// @param vertex Список вершин.
   glm::vec2 operator()(const glm::vec2 &, const std::vector<unsigned int> &poligon, const std::vector<glm::vec2> &vertex)
   {
     glm::vec2 point;
@@ -23,6 +27,7 @@ struct LloydPredicateDefault
 /// Релаксация методом Ллойда.
 /// @param sites Список точек.
 /// @param size Размер органичивающей области.
+/// @param predicate Функция обработки точек.
 /// @return Список точек после одной итерации релаксации Ллойда.
 template<class Predicate>
 std::vector<glm::vec2> Lloyd(const std::vector<glm::vec2> &sites, const glm::vec2 &size, Predicate predicate = Predicate())
