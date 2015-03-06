@@ -1,6 +1,7 @@
 #ifndef LLOYD_H
 #define LLOYD_H
-
+#include <vector>
+#include <glm/glm.hpp>
 
 /// Релаксация методом Ллойда.
 /// @param sites Список точек.
