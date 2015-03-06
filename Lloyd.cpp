@@ -16,6 +16,7 @@ Lloyd::Lloyd(const std::vector<glm::vec2> &sites, const glm::vec2 &size, unsigne
   {
     // Строим диаграмму
     Voronoi voronoi(mListSite, size);
+    voronoi();
     listVertex.clear();
     listVertex.resize(mListSite.size());
 
@@ -50,20 +51,6 @@ Lloyd::Lloyd(const std::vector<glm::vec2> &sites, const glm::vec2 &size, unsigne
 
 
     auto vertex = voronoi.GetVertex();
-    // Вычисляем новые значения точек.
-    for(unsigned int j = 0; j < listVertex.size(); ++j)
-    {
-      auto const &poligon = listVertex[j];
-      assert(!poligon.empty());
-      glm::vec2 point;
-      for(auto jt = poligon.begin(); jt != poligon.end(); ++jt)
-      {
-        point += vertex[*jt];
-      }
-      point /= static_cast<float>(poligon.size());
-      point = point * 3.0f + mListSite[j];
-      mListSite[j] = point / 4.0f;
-    }
 
     //рисуем гиф
     Image image;
@@ -76,6 +63,28 @@ Lloyd::Lloyd(const std::vector<glm::vec2> &sites, const glm::vec2 &size, unsigne
       const glm::vec2 &p1 = vertex[(*it).vertex1];
       const glm::vec2 &p2 = vertex[(*it).vertex2];
       image.DrawLine(p1, p2, 0x00FF00FF);
+    }
+
+//     for(auto it = edge.begin(); it != edge.end(); ++it)
+//     {
+//       const glm::vec2 &p1 = mListSite[(*it).site1];
+//       const glm::vec2 &p2 = mListSite[(*it).site2];
+//       image.DrawLine(p1, p2, 0xFF0000FF);
+//     }
+
+    // Вычисляем новые значения точек.
+    for(unsigned int j = 0; j < listVertex.size(); ++j)
+    {
+      auto const &poligon = listVertex[j];
+      assert(!poligon.empty());
+      glm::vec2 point;
+      for(auto jt = poligon.begin(); jt != poligon.end(); ++jt)
+      {
+        point += vertex[*jt];
+      }
+      point /= static_cast<float>(poligon.size());
+      //point = (point * 3.0f + mListSite[j]) / 4.0f;
+      mListSite[j] = point;
     }
 
     GifWriteFrame(&gw, &image.Raw()[0], size.x + 1, size.y + 1, 1);

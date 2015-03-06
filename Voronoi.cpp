@@ -12,7 +12,34 @@ Voronoi::Voronoi(const std::vector<glm::vec2> &sites, const glm::vec2 &size)
   : mListSite(sites), mRect(Point(), size)
 {
   mHead = nullptr;
+  mSiteEventsIndex = 0;
+}
 
+Voronoi::~Voronoi()
+{
+  assert(mHead == nullptr);
+  assert(mSiteEvents.empty());
+  assert(mCircleEvents.empty());
+  assert(mListPoints.empty());
+  assert(mListEdgeElement.empty());
+
+  // Все ресурсы кроме списка граней и списка вершин уже должны быть освобождены.
+  // Списки граней и вершин освободятся автоматически.
+}
+
+void Voronoi::operator()()
+{
+  assert(mHead == nullptr);
+  assert(mSiteEvents.empty());
+  assert(mCircleEvents.empty());
+  assert(mListPoints.empty());
+  assert(mListEdgeElement.empty());
+  // Перед построением диаграммы все ресурсы должны быть освобождены.
+
+  // Очищаем списки вершин и граней. Вдруг мы строим диаграмму не в первый раз?
+  Clear();
+
+  // Резервируем память.
   mListPoints.reserve(mListSite.size() * 6);
   mListEdgeElement.reserve(mListSite.size() * 3);
   mListVertex.reserve(mListSite.size() * 2);
@@ -23,10 +50,11 @@ Voronoi::Voronoi(const std::vector<glm::vec2> &sites, const glm::vec2 &size)
   mSiteEvents.reserve(mListSite.size());
   for(SiteIndex i = 0; i < mListSite.size(); ++i)
   {
-    //mFinderAnglePoints.Check(i);
     mSiteEvents.push_back(i);
   }
 
+  // Сортируем события точек сверху вниз.
+  // Точки лежащие на одной высоте сортируются справа налево.
   std::sort(mSiteEvents.begin(), mSiteEvents.end(), [this](SiteIndex n1, SiteIndex n2) -> bool
   {
     const Point &p1 = mListSite[n1];
@@ -37,17 +65,33 @@ Voronoi::Voronoi(const std::vector<glm::vec2> &sites, const glm::vec2 &size)
     return p1.y > p2.y;
   });
 
-  printf("Start Process\n");
-
+  // Строим диаграмму.
   Process();
-
 }
 
-Voronoi::~Voronoi()
+void Voronoi::Clear()
 {
-  assert(mSiteEvents.empty());
+  std::vector<glm::vec2>().swap(mListVertex);
+  std::vector<Edge>().swap(mListEdge);
+}
+
+void Voronoi::ReleaseProcess()
+{
+  assert(mSiteEventsIndex == mSiteEvents.size());
   assert(mCircleEvents.empty());
   RemoveTree();
+
+  std::vector<SiteIndex>().swap(mSiteEvents);
+  std::multiset<CircleEvent *, CircleEventComparator>().swap(mCircleEvents);
+}
+
+void Voronoi::ReleasePostProcess()
+{
+  assert(IsListEdgeElementEmpty());
+  assert(IsListPointsEmpty());
+
+  std::vector<IElement *>().swap(mListPoints);
+  std::vector<EdgeElement *>().swap(mListEdgeElement);
 }
 
 bool Voronoi::IsList(BtreeElement *btreeElement)
@@ -611,21 +655,10 @@ void Voronoi::Process()
     //GenerateListsBPA();
     //PrintListsBPA();
   }
-
-  printf("point count:  %6i, capacity :%i\n",
-         static_cast<int>(mListPoints.size()), static_cast<int>(mListPoints.capacity()));
-  printf("edge count:   %6i, capacity :%i\n",
-         static_cast<int>(mListEdgeElement.size()), static_cast<int>(mListEdgeElement.capacity()));
-
   ReleaseProcess();
 
   PostProcess();
   ReleasePostProcess();
-
-  printf("vertex count: %6i, capacity :%i\n",
-         static_cast<int>(mListVertex.size()), static_cast<int>(mListVertex.capacity()));
-  printf("edge count:   %6i, capacity :%i\n",
-         static_cast<int>(mListEdge.size()), static_cast<int>(mListEdge.capacity()));
 }
 
 Voronoi::BtreeElement *Voronoi::FindArc(float x)
@@ -692,37 +725,6 @@ void Voronoi::RemoveTree(BtreeElement *node)
     delete static_cast<ArcElement *>(node->element);
   }
   delete node;
-}
-
-
-void Voronoi::ReleaseProcess()
-{
-  assert(mSiteEventsIndex == mSiteEvents.size());
-  assert(mCircleEvents.empty());
-  RemoveTree();
-
-  {
-    std::vector<SiteIndex> tmp;
-    std::swap(mSiteEvents, tmp);
-  }
-  {
-    std::multiset<CircleEvent *, CircleEventComparator> tmp;
-    std::swap(mCircleEvents, tmp);
-  }
-}
-
-void Voronoi::ReleasePostProcess()
-{
-  assert(IsListEdgeElementEmpty());
-  assert(IsListPointsEmpty());
-  {
-    std::vector<IElement *> tmp;
-    std::swap(mListPoints, tmp);
-  }
-  {
-    std::vector<EdgeElement *> tmp;
-    std::swap(mListEdgeElement, tmp);
-  }
 }
 
 bool Voronoi::IsListEdgeElementEmpty()
@@ -994,3 +996,9 @@ void Voronoi::PostProcess()
     }
   }
 }
+
+std::vector<glm::vec2> &Voronoi::GetSites()
+{
+  return mListSite;
+}
+

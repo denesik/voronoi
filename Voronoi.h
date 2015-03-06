@@ -26,6 +26,9 @@ class Voronoi
 {
 public:
 
+  /// Грань.
+  /// Содержит индексы на две точки в списке точек, лежащих слева и справа от грани.
+  /// Так же содержит индексы на две вершины в списке вершин, лежащих на концах грани.
   struct Edge
   {
     unsigned int site1;
@@ -38,17 +41,29 @@ public:
     }
   };
 
-
+  /// Конструктор.
+  /// @param sites Список точек. Точки не должен содержать одинаковых точек.
+  /// @param size Размер рабочей области.
   Voronoi(const std::vector<glm::vec2> &sites, const glm::vec2 &size);
 
   ~Voronoi();
+
+  /// Построить диаграмму вороного.
+  void operator()();
+
+  /// Очистить диаграмму вороного.
+  /// Освобождаются списки вершин и граней.
+  /// Список точек не освобождается.
+  void Clear();
+
+  /// Вернуть список точек.
+  std::vector<glm::vec2> &GetSites();
 
   /// Вернуть список граней.
   std::vector<Edge> &GetEdges();
 
   /// Вернуть список вершин.
   std::vector<glm::vec2> &GetVertex();
-
 
 private:
   typedef unsigned int SiteIndex;
@@ -179,7 +194,7 @@ private:
 
 private:
   /// Список исходных точек.
-  const std::vector<glm::vec2> &mListSite;
+  std::vector<glm::vec2> mListSite;
 
   /// Ограничивающая область диаграммы.
   const Rect mRect;
