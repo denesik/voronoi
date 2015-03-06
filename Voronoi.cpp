@@ -78,7 +78,7 @@ Voronoi::~Voronoi()
   // Списки граней и вершин освободятся автоматически.
 }
 
-void Voronoi::operator()()
+Voronoi &Voronoi::operator()()
 {
   assert(mHead == nullptr);
   assert(mSiteEvents.empty());
@@ -118,6 +118,8 @@ void Voronoi::operator()()
 
   // Строим диаграмму.
   Process();
+
+  return *this;
 }
 
 void Voronoi::Clear()
