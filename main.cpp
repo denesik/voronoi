@@ -102,21 +102,86 @@ std::vector<glm::vec2> LloidGenerate(const unsigned int count, const glm::uvec2 
   return std::move(points);
 }
 
+
+struct HarmonicMean
+{
+  glm::vec2 operator()(const glm::vec2 &, const std::vector<unsigned int> &poligon, const std::vector<glm::vec2> &vertex)
+  {
+    glm::vec2 point;
+    for(auto jt = poligon.begin(); jt != poligon.end(); ++jt)
+    {
+      point += 1.0f / vertex[*jt];
+    }
+    point = static_cast<float>(poligon.size()) / point;
+    return point;
+  }
+};
+
+struct GeometricMean
+{
+  glm::vec2 operator()(const glm::vec2 &, const std::vector<unsigned int> &poligon, const std::vector<glm::vec2> &vertex)
+  {
+    glm::dvec2 point(1.0f, 1.0f);
+    for(auto jt = poligon.begin(); jt != poligon.end(); ++jt)
+    {
+      point *= vertex[*jt];
+    }
+    point = glm::abs(point);
+    point.x = glm::pow(point.x, 1.0f / static_cast<float>(poligon.size()));
+    point.y = glm::pow(point.y, 1.0f / static_cast<float>(poligon.size()));
+    return point;
+  }
+};
+
+struct SquareMean
+{
+  glm::vec2 operator()(const glm::vec2 &, const std::vector<unsigned int> &poligon, const std::vector<glm::vec2> &vertex)
+  {
+    glm::vec2 point;
+    for(auto jt = poligon.begin(); jt != poligon.end(); ++jt)
+    {
+      point += vertex[*jt] * vertex[*jt];
+    }
+    point = glm::sqrt(point / static_cast<float>(poligon.size()));
+    return point;
+  }
+};
+
+struct AverageDegree
+{
+  glm::vec2 operator()(const glm::vec2 &, const std::vector<unsigned int> &poligon, const std::vector<glm::vec2> &vertex)
+  {
+    glm::vec2 p(10);
+    glm::dvec2 point(1.0f, 1.0f);
+    for(auto jt = poligon.begin(); jt != poligon.end(); ++jt)
+    {
+      point.x += glm::pow(vertex[*jt].x, p.x);
+      point.y += glm::pow(vertex[*jt].y, p.y);
+    }
+    point /= static_cast<float>(poligon.size());
+    point.x = glm::pow(point.x, 1.0f / p.x);
+    point.y = glm::pow(point.y, 1.0f / p.y);
+    return point;
+  }
+};
+
+
 int main()
 {
   glm::uvec2 size(400, 400);
 
   std::vector<glm::vec2> points;
   //points = Generate(100000, size);
-  points = LloidGenerate(200, glm::uvec2(200, 200), glm::uvec2(5, 5));
+  points = LloidGenerate(300, glm::uvec2(180, 180), glm::uvec2(40, 40));
 
   printf("%7gs End generate, Count: %i\n", get_msec(), static_cast<int>(points.size()));
 
   GifWriter gw;
   GifBegin(&gw, "voron.gif", size.x + 1, size.y + 1, 50);
-  for(unsigned int i = 0; i < 800; ++i)
+
+  for(unsigned int i = 0; i < 300; ++i)
   {
-    points = Lloyd(points, size);
+    points = Lloyd(points, size, AverageDegree());
 
     // Рисуем анимацию.
     Voronoi diagram(points, size);
@@ -128,20 +193,21 @@ int main()
     image.Resize(size.x + 1, size.y + 1);
     image.Fill(0xFFFFFFFF);
 
-    /*
+
     for(auto it = edge.begin(); it != edge.end(); ++it)
     {
       const glm::vec2 &p1 = vertex[(*it).vertex1];
       const glm::vec2 &p2 = vertex[(*it).vertex2];
       image.DrawLine(p1, p2, 0x00FF00FF);
     }
-    */
+    /*
     for(auto it = edge.begin(); it != edge.end(); ++it)
     {
       const glm::vec2 &p1 = points[(*it).site1];
       const glm::vec2 &p2 = points[(*it).site2];
       image.DrawLine(p1, p2, 0xFF0000FF);
     }
+    */
     GifWriteFrame(&gw, &image.Raw()[0], size.x + 1, size.y + 1, 2);
   }
   GifEnd(&gw);
