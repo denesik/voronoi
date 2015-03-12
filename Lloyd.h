@@ -44,7 +44,7 @@ std::vector<glm::vec2> Lloyd(const std::vector<glm::vec2> &sites, const glm::vec
     // Резервируем память под 9 вершин (среднее значение с запасом),
     // однако каждая вершина содержится в 2-х гранях, которые относятся к данному
     // полигону, поэтому резервируем в 2 раза больше памяти.
-    listPoligons.emplace_back();
+    listPoligons.push_back(std::vector<unsigned int>());
     listPoligons.back().reserve(9 * 2);
   }
 
